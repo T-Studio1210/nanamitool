@@ -12,6 +12,14 @@ import os
 import random
 from bs4 import BeautifulSoup
 from groq import Groq
+from firebase_notifications import (
+    send_push_notification, send_push_to_users,
+    send_announcement_notification, send_problem_notification,
+    send_answer_notification, send_reaction_notification,
+    send_feedback_notification, send_view_notification,
+    send_japanese_assignment_notification, send_japanese_answer_notification,
+    send_japanese_feedback_notification
+)
 
 # Groq API設定
 GROQ_API_KEY = os.environ.get("GROQ_API_KEY", "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")
@@ -1612,6 +1620,14 @@ def answer_assigned_quiz():
         )
         db.session.add(answer)
         db.session.commit()
+        
+        # 通知送信
+        try:
+            creator = User.query.get(assignment.quiz.created_by)
+            if creator:
+                send_japanese_answer_notification(current_user, f"クイズ: {assignment.quiz.word}", creator)
+        except Exception as e:
+            print(f"Notification Error: {e}")
     
     return jsonify({'success': True})
 
@@ -2064,6 +2080,16 @@ def bulk_send_japanese_quiz():
                 count += 1
     
     db.session.commit()
+    
+    # 通知送信
+    if count > 0:
+        recipients = [User.query.get(int(sid)) for sid in quiz_ids and student_ids] # Simplification error prevention
+        # Re-fetch is safer or just use the IDs. send_japanese_assignment_notification expects User objects.
+        # Let's do it properly inside the block or fetched before.
+        # Since I can't easily insert code before the loop without replacing the whole function, I will do it here.
+        recipients = [User.query.get(int(sid)) for sid in student_ids]
+        send_japanese_assignment_notification(count, recipients, "クイズ")
+
     flash(f'{len(quiz_id_list)}問を{len(student_ids)}人の生徒に配信しました！（計{count}件）', 'success')
     return redirect(url_for('teacher_japanese_problems'))
 
@@ -2158,6 +2184,11 @@ def send_japanese_quiz():
                 count += 1
     
     db.session.commit()
+    
+    # 通知送信
+    if count > 0:
+        recipients = [User.query.get(int(sid)) for sid in student_ids]
+        send_japanese_assignment_notification(count, recipients, "クイズや書き取り")
     
     # 詳細メッセージ
     msg_parts = []
@@ -2288,6 +2319,12 @@ def bulk_send_flashcards():
                 count += 1
                 
     db.session.commit()
+    
+    # 通知送信
+    if count > 0:
+        recipients = [User.query.get(int(sid)) for sid in student_ids]
+        send_japanese_assignment_notification(count, recipients, "フラッシュカード")
+
     flash(f'{len(id_list)}枚のカードを{len(student_ids)}人の生徒に配信しました！（計{count}件）', 'success')
     return redirect(url_for('teacher_flashcard_manage'))
 
@@ -2462,6 +2499,12 @@ def bulk_send_writings():
                 count += 1
                 
     db.session.commit()
+
+    # 通知送信
+    if count > 0:
+        recipients = [User.query.get(int(sid)) for sid in student_ids]
+        send_japanese_assignment_notification(count, recipients, "書き取り練習")
+
     flash(f'{len(id_list)}問の書き取り練習を{len(student_ids)}人の生徒に配信しました！（計{count}件）', 'success')
     return redirect(url_for('teacher_writing_manage'))
 
@@ -2683,6 +2726,9 @@ def teacher_kanji_generate():
                                 db.session.add(assignment)
                                 send_count += 1
                     db.session.commit()
+                    db.session.commit()
+                    if send_count > 0:
+                        send_japanese_assignment_notification(send_count, chinese_students, "読み方クイズ")
                     flash(f'{len(problems_data)}問の読み方クイズを生成し、{len(chinese_students)}人の生徒に配信しました！', 'success')
                 else:
                     flash(f'{len(problems_data)}問の読み方クイズを生成しました！', 'success')
@@ -2756,6 +2802,9 @@ def teacher_kanji_generate():
                                 db.session.add(assignment)
                                 send_count += 1
                     db.session.commit()
+                    db.session.commit()
+                    if send_count > 0:
+                        send_japanese_assignment_notification(send_count, chinese_students, "フラッシュカード")
                     flash(f'{len(cards_data)}枚のフラッシュカードを生成し、{len(chinese_students)}人の生徒に配信しました！', 'success')
                 else:
                     flash(f'{len(cards_data)}枚のフラッシュカードを生成しました！', 'success')
@@ -2835,6 +2884,9 @@ def teacher_kanji_generate():
                                 db.session.add(assignment)
                                 send_count += 1
                     db.session.commit()
+                    db.session.commit()
+                    if send_count > 0:
+                        send_japanese_assignment_notification(send_count, chinese_students, "書き取り練習")
                     flash(f'{len(writings_data)}問の書き取り練習を生成し、{len(chinese_students)}人の生徒に配信しました！', 'success')
                 else:
                     flash(f'{len(writings_data)}問の書き取り練習を生成しました！', 'success')
@@ -2876,6 +2928,19 @@ def save_feedback():
     if assignment:
         assignment.teacher_feedback = feedback
         db.session.commit()
+        
+        # 通知送信
+        try:
+            student = User.query.get(assignment.student_id)
+            task_label = "課題"
+            if task_type == 'quiz': task_label = f"クイズ: {assignment.quiz.word}"
+            elif task_type == 'flashcard': task_label = f"カード: {assignment.flashcard.word}"
+            elif task_type == 'writing': task_label = f"書き取り: {assignment.writing.word}"
+            
+            send_japanese_feedback_notification(student, task_label)
+        except Exception as e:
+            print(f"Notification Error: {e}")
+
         flash('フィードバックを保存しました', 'success')
         
     
@@ -2908,6 +2973,18 @@ def save_feedback_bulk():
             if assignment:
                 assignment.teacher_feedback = feedback_text
                 count += 1
+                
+                # 通知送信
+                try:
+                    student = User.query.get(assignment.student_id)
+                    task_label = "課題"
+                    if task_type == 'quiz': task_label = f"クイズ: {assignment.quiz.word}"
+                    elif task_type == 'flashcard': task_label = f"カード: {assignment.flashcard.word}"
+                    elif task_type == 'writing': task_label = f"書き取り: {assignment.writing.word}"
+                    
+                    send_japanese_feedback_notification(student, task_label)
+                except Exception as e:
+                    print(f"Notification Error: {e}")
                 
         db.session.commit()
         return jsonify({'success': True, 'count': count})
@@ -2945,6 +3022,15 @@ def student_quiz_assignment(assignment_id):
                 assignment.completed_at = datetime.utcnow()
                 assignment.is_correct = True
                 db.session.commit()
+                
+                # 通知送信
+                try:
+                    creator = User.query.get(assignment.quiz.created_by)
+                    if creator:
+                        send_japanese_answer_notification(current_user, f"クイズ: {assignment.quiz.word}", creator)
+                except Exception as e:
+                    print(f"Notification Error: {e}")
+
                 flash('正解です！完了しました！', 'success')
                 
                 # 次の未完了問題を探す（連続実施のため）
@@ -3031,6 +3117,15 @@ def student_flashcard(assignment_id):
             assignment.completed = True
             assignment.completed_at = datetime.utcnow()
             db.session.commit()
+            
+            # 通知送信
+            try:
+                creator = User.query.get(assignment.flashcard.created_by)
+                if creator:
+                    send_japanese_answer_notification(current_user, f"カード: {assignment.flashcard.word}", creator)
+            except Exception as e:
+                print(f"Notification Error: {e}")
+
             flash('フラッシュカード学習を完了しました！', 'success')
             
             # 次の未完了フラッシュカードを探す（同じグループ優先）
@@ -3106,6 +3201,15 @@ def student_writing(assignment_id):
                 assignment.result_image = result_image
                 
             db.session.commit()
+            
+            # 通知送信
+            try:
+                creator = User.query.get(assignment.writing.created_by)
+                if creator:
+                    send_japanese_answer_notification(current_user, f"書き取り: {assignment.writing.word}", creator)
+            except Exception as e:
+                print(f"Notification Error: {e}")
+
             flash('書き取り練習を完了しました！', 'success')
             
             # 次の未完了書き取りを探す（同じグループ優先）

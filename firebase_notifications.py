@@ -174,3 +174,46 @@ def send_view_notification(student, problem, teacher):
     }
     
     return send_push_notification(teacher.fcm_token, title, body, data)
+
+
+def send_japanese_assignment_notification(count, recipients, task_type_label="課題"):
+    """日本語課題配信の通知を送信"""
+    title = "🇯🇵 新しい日本語課題が届きました"
+    body = f"{task_type_label}など {count}件の課題が出されました。がんばりましょう！"
+    data = {
+        "type": "japanese_assignment",
+        "url": "/japanese"
+    }
+    
+    return send_push_to_users(recipients, title, body, data)
+
+
+def send_japanese_answer_notification(student, task_label, teacher):
+    """日本語課題回答の通知を先生に送信"""
+    if not teacher or not teacher.fcm_token:
+        return False
+        
+    student_name = student.display_name if student else "生徒"
+    title = f"🇯🇵 {student_name}さんが日本語課題を完了しました"
+    body = f"{task_label} に取り組みました"
+    data = {
+        "type": "japanese_answer",
+        "url": "/teacher/japanese"
+    }
+    
+    return send_push_notification(teacher.fcm_token, title, body, data)
+
+
+def send_japanese_feedback_notification(student, task_label):
+    """日本語課題へのフィードバック通知を生徒に送信"""
+    if not student or not student.fcm_token:
+        return False
+    
+    title = "📬 日本語課題にフィードバックが届きました"
+    body = f"先生が「{task_label}」を確認しました。見てみましょう！"
+    data = {
+        "type": "japanese_feedback",
+        "url": "/japanese"
+    }
+    
+    return send_push_notification(student.fcm_token, title, body, data)
