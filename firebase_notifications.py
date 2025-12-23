@@ -5,14 +5,31 @@ from firebase_admin import credentials, messaging
 import os
 
 # Firebase Admin SDKの初期化
-cred_path = os.path.join(os.path.dirname(__file__), 'firebase-service-account.json')
-if os.path.exists(cred_path):
-    cred = credentials.Certificate(cred_path)
-    firebase_admin.initialize_app(cred)
-    FIREBASE_INITIALIZED = True
-else:
-    FIREBASE_INITIALIZED = False
-    print("⚠️ Firebase設定ファイルが見つかりません")
+FIREBASE_INITIALIZED = False
+
+try:
+    # 1. 環境変数からの読み込み（Renderなどの本番環境用）
+    firebase_creds_json = os.environ.get('FIREBASE_CREDENTIALS')
+    if firebase_creds_json:
+        import json
+        creds_dict = json.loads(firebase_creds_json)
+        cred = credentials.Certificate(creds_dict)
+        firebase_admin.initialize_app(cred)
+        FIREBASE_INITIALIZED = True
+        print("✅ Firebase initialized from Environment Variables")
+    
+    # 2. ファイルからの読み込み（ローカル開発用）
+    if not FIREBASE_INITIALIZED:
+        cred_path = os.path.join(os.path.dirname(__file__), 'firebase-service-account.json')
+        if os.path.exists(cred_path):
+            cred = credentials.Certificate(cred_path)
+            firebase_admin.initialize_app(cred)
+            FIREBASE_INITIALIZED = True
+            print("✅ Firebase initialized from JSON file")
+        else:
+            print("⚠️ Firebase settings not found (Environment or JSON file)")
+except Exception as e:
+    print(f"❌ Firebase initialization error: {e}")
 
 
 def strip_html_tags(html_content):
