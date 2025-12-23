@@ -7,6 +7,8 @@ set -o errexit
 pip install -r requirements.txt
 
 # データベースの初期設定、漢字データの投入、管理者ユーザーの作成を順次実行
-python -c "from app import app, db; app.app_context().push(); db.create_all()"
+# データベースの初期設定、漢字データの投入、管理者ユーザーの作成を順次実行
+# 注意: ビルド時にDBに接続できない場合があるため、失敗してもエラーにしない (|| true)
+python -c "from app import app, db; app.app_context().push(); db.create_all()" || true
 python -c "from app import app; from seed_kanji import seed_kanji; app.app_context().push(); seed_kanji()" || true
 python create_admin.py || true
