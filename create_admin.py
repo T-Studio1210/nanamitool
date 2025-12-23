@@ -10,23 +10,26 @@ def create_admin():
         # テーブルがない場合は作成
         db.create_all()
         
-        # 先生ユーザーがいるか確認
-        admin = User.query.filter_by(role='teacher').first()
-        if admin:
-            print(f"既に先生ユーザーが存在します: {admin.username}")
+        # nanamiユーザーがいるか確認
+        target_user = User.query.filter_by(username='nanami').first()
+        if target_user:
+            print(f"✅ 既にnanamiユーザーが存在します")
+            # パスワードを念の為リセットする場合はコメントアウトを外す
+            # target_user.set_password('nanami2005')
+            # db.session.commit()
             return
 
         # 新規作成
         teacher = User(
-            username='nanami',  # ユーザー名
+            username='nanami',
             display_name='石川七夢先生',
             role='teacher'
         )
-        teacher.set_password('nanami2005')  # パスワード
+        teacher.set_password('nanami2005')
         
         db.session.add(teacher)
         db.session.commit()
-        print("✅ 先生ユーザー(admin)を作成しました。パスワードは admin1234 です。")
+        print("✅ ユーザー(nanami)を作成しました。パスワードは nanami2005 です。")
 
 if __name__ == '__main__':
     create_admin()
