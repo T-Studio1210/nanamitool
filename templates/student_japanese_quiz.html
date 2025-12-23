@@ -1,0 +1,291 @@
+{% extends "base.html" %}
+
+{% block content %}
+<style>
+    .problem-container {
+        max-width: 800px;
+        margin: 0 auto;
+        padding: 2rem;
+    }
+
+    .back-link {
+        display: inline-block;
+        margin-bottom: 1rem;
+        color: #666;
+        text-decoration: none;
+    }
+
+    .back-link:hover {
+        text-decoration: underline;
+    }
+
+    /* ナビゲーションバー */
+    .nav-bar {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        background: #f5f5f5;
+        padding: 0.75rem 1rem;
+        border-radius: 8px;
+        margin-bottom: 1rem;
+    }
+
+    .nav-btn {
+        padding: 0.5rem 1rem;
+        background: #2196f3;
+        color: white;
+        border: none;
+        border-radius: 6px;
+        cursor: pointer;
+        text-decoration: none;
+        font-size: 0.9rem;
+        transition: background 0.2s;
+    }
+
+    .nav-btn:hover {
+        background: #1976d2;
+    }
+
+    .nav-btn:disabled,
+    .nav-btn.disabled {
+        background: #ccc;
+        cursor: not-allowed;
+    }
+
+    .nav-indicator {
+        display: flex;
+        gap: 6px;
+        align-items: center;
+    }
+
+    .nav-dot {
+        width: 12px;
+        height: 12px;
+        border-radius: 50%;
+        background: #ddd;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+
+    .nav-dot:hover {
+        transform: scale(1.2);
+    }
+
+    .nav-dot.current {
+        background: #2196f3;
+        transform: scale(1.3);
+    }
+
+    .nav-dot.completed {
+        background: #4caf50;
+    }
+
+    .nav-dot.has-feedback {
+        background: #ff9800;
+        animation: pulse 1.5s infinite;
+    }
+
+    @keyframes pulse {
+
+        0%,
+        100% {
+            transform: scale(1);
+        }
+
+        50% {
+            transform: scale(1.2);
+        }
+    }
+
+    .nav-counter {
+        font-weight: bold;
+        color: #333;
+        margin: 0 1rem;
+    }
+
+    .completion-banner {
+        background: #e8f5e9;
+        padding: 1rem;
+        border-radius: 8px;
+        margin-bottom: 1rem;
+        border: 1px solid #c8e6c9;
+    }
+
+    .completed-date {
+        font-size: 0.9rem;
+        color: #666;
+        margin-top: 0.5rem;
+    }
+
+    .quiz-card {
+        background: white;
+        padding: 2rem;
+        border-radius: 12px;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        text-align: center;
+    }
+
+    .quiz-word {
+        font-size: 4rem;
+        margin: 1rem 0;
+        color: #333;
+    }
+
+    .quiz-instruction {
+        color: #666;
+        margin-bottom: 2rem;
+    }
+
+    .quiz-options {
+        display: grid;
+        gap: 1rem;
+        max-width: 400px;
+        margin: 0 auto;
+    }
+
+    .option-btn {
+        padding: 1rem;
+        font-size: 1.2rem;
+        border: 2px solid #ddd;
+        background: white;
+        border-radius: 8px;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+
+    .option-btn:hover:not(:disabled) {
+        border-color: #2196f3;
+        background: #e3f2fd;
+    }
+
+    .option-btn:disabled {
+        opacity: 0.6;
+        cursor: not-allowed;
+    }
+
+    .teacher-feedback {
+        margin-top: 1rem;
+        padding: 1rem;
+        background: #fff3e0;
+        border: 1px solid #ffcc80;
+        border-radius: 8px;
+    }
+
+    .teacher-feedback h4 {
+        margin: 0 0 0.5rem 0;
+        font-size: 1rem;
+        color: #e65100;
+    }
+
+    .hint-section {
+        margin-top: 2rem;
+        text-align: left;
+    }
+
+    details {
+        background: #f9f9f9;
+        padding: 0.5rem;
+        border-radius: 4px;
+    }
+
+    summary {
+        cursor: pointer;
+        color: #007bff;
+    }
+
+    /* 下部ナビゲーション */
+    .bottom-nav {
+        display: flex;
+        justify-content: space-between;
+        margin-top: 1.5rem;
+        padding-top: 1rem;
+        border-top: 1px solid #eee;
+    }
+</style>
+
+<div class="problem-container">
+    <a href="{{ url_for('dashboard') }}" class="back-link">← ダッシュボードに戻る</a>
+
+    <h2>熟語クイズ</h2>
+
+    <!-- ナビゲーションバー -->
+    <div class="nav-bar">
+        {% if nav.prev_id %}
+        <a href="{{ url_for('student_quiz_assignment', assignment_id=nav.prev_id) }}" class="nav-btn">← 前の問題</a>
+        {% else %}
+        <span class="nav-btn disabled">← 前の問題</span>
+        {% endif %}
+
+        <div class="nav-indicator">
+            {% for item in nav.group_items %}
+            <a href="{{ url_for('student_quiz_assignment', assignment_id=item.id) }}"
+                class="nav-dot {% if item.id == assignment.id %}current{% elif item.teacher_feedback %}has-feedback{% elif item.completed %}completed{% endif %}"
+                title="{{ item.quiz.word }} {% if item.completed %}(完了){% endif %}{% if item.teacher_feedback %} - フィードバックあり{% endif %}">
+            </a>
+            {% endfor %}
+        </div>
+        <span class="nav-counter">{{ nav.current }} / {{ nav.total }}</span>
+
+        {% if nav.next_id %}
+        <a href="{{ url_for('student_quiz_assignment', assignment_id=nav.next_id) }}" class="nav-btn">次の問題 →</a>
+        {% else %}
+        <span class="nav-btn disabled">次の問題 →</span>
+        {% endif %}
+    </div>
+
+    {% if assignment.completed %}
+    <div class="completion-banner">
+        <h3>✅ この問題は完了済みです</h3>
+        <div class="completed-date">完了日: {{ assignment.completed_at|jst('%Y/%m/%d %H:%M') }}</div>
+        <p style="margin: 0.5rem 0 0; font-size: 0.9rem; color: #666;">回答を変更することもできます。</p>
+    </div>
+    {% endif %}
+
+    {% if assignment.teacher_feedback %}
+    <div class="teacher-feedback">
+        <h4>💬 先生からのフィードバック:</h4>
+        <div>{{ assignment.teacher_feedback }}</div>
+    </div>
+    {% endif %}
+
+    <div class="quiz-card">
+        <h1 class="quiz-word">{{ assignment.quiz.word }}</h1>
+        <p class="quiz-instruction">正しい読み方を選んでください。</p>
+
+        <form method="POST" class="quiz-options">
+            <input type="hidden" name="action" value="answer">
+            {% for option in options %}
+            <button type="submit" name="option" value="{{ option }}" class="option-btn">
+                {{ option }}
+            </button>
+            {% endfor %}
+        </form>
+
+        {% if assignment.quiz.meaning_chinese %}
+        <div class="hint-section">
+            <details>
+                <summary>ヒント（中国語の意味）</summary>
+                <div style="margin-top: 0.5rem;">{{ assignment.quiz.meaning_chinese }}</div>
+            </details>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- 下部ナビゲーション -->
+    <div class="bottom-nav">
+        {% if nav.prev_id %}
+        <a href="{{ url_for('student_quiz_assignment', assignment_id=nav.prev_id) }}" class="nav-btn">← 前の問題</a>
+        {% else %}
+        <span class="nav-btn disabled">← 前の問題</span>
+        {% endif %}
+
+        <a href="{{ url_for('dashboard') }}" class="nav-btn" style="background: #666;">ダッシュボードに戻る</a>
+
+        {% if nav.next_id %}
+        <a href="{{ url_for('student_quiz_assignment', assignment_id=nav.next_id) }}" class="nav-btn">次の問題 →</a>
+        {% else %}
+        <span class="nav-btn disabled">次の問題 →</span>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

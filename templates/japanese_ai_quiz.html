@@ -1,0 +1,146 @@
+{% extends "base.html" %}
+
+{% block title %}AI問題生成 - 七夢学習アプリ{% endblock %}
+
+{% block head %}
+<style>
+    .difficulty-buttons {
+        display: flex;
+        gap: 12px;
+        margin-bottom: 20px;
+    }
+
+    .difficulty-btn {
+        flex: 1;
+        padding: 16px;
+        border: 2px solid var(--border);
+        border-radius: 12px;
+        background: white;
+        cursor: pointer;
+        text-align: center;
+        transition: all 0.2s;
+    }
+
+    .difficulty-btn:hover,
+    .difficulty-btn.active {
+        border-color: var(--primary);
+        background: var(--bg-hover);
+    }
+
+    .quiz-word {
+        font-size: 3rem;
+        text-align: center;
+        padding: 2rem;
+        background: linear-gradient(135deg, #e91e8c 0%, #c4177a 100%);
+        color: white;
+        border-radius: 16px;
+        margin: 1rem 0;
+        font-weight: 700;
+    }
+
+    .quiz-options {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 12px;
+        margin-top: 20px;
+    }
+
+    .quiz-option {
+        padding: 16px;
+        font-size: 1.2rem;
+        border: 2px solid var(--border);
+        border-radius: 12px;
+        background: white;
+        cursor: pointer;
+        transition: all 0.2s;
+        text-align: center;
+    }
+
+    .quiz-option:hover {
+        border-color: var(--primary);
+    }
+
+    .quiz-option.correct {
+        background: #e8f5e9;
+        border-color: #4caf50;
+    }
+
+    .quiz-option.incorrect {
+        background: #ffebee;
+        border-color: #f44336;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1 class="page-title">✨ AI問題生成</h1>
+    <a href="{{ url_for('japanese_dashboard') }}" class="btn btn-secondary btn-sm">← 戻る</a>
+</div>
+
+<div class="card">
+    <p>AIが新しいクイズを作ってくれるよ！難易度を選んでね。</p>
+
+    <form method="POST">
+        <div class="difficulty-buttons">
+            <button type="submit" name="difficulty" value="easy" class="difficulty-btn">
+                🌱 かんたん
+            </button>
+            <button type="submit" name="difficulty" value="medium" class="difficulty-btn">
+                🌿 ふつう
+            </button>
+            <button type="submit" name="difficulty" value="hard" class="difficulty-btn">
+                🌳 むずかしい
+            </button>
+        </div>
+    </form>
+</div>
+
+{% if quiz %}
+<div class="card">
+    <div class="quiz-word">{{ quiz.word }}</div>
+    <p style="text-align: center; color: var(--text-muted);">🇨🇳 {{ quiz.meaning_chinese }}</p>
+
+    <div class="quiz-options" id="quiz-options">
+        {% for option in quiz.options %}
+        <button class="quiz-option" onclick="checkAnswer(this, '{{ option }}', '{{ quiz.correct_reading }}')">
+            {{ option }}
+        </button>
+        {% endfor %}
+    </div>
+
+    <div id="result" style="display: none; margin-top: 20px; text-align: center;"></div>
+    <p id="example" style="display: none; text-align: center; margin-top: 12px;">📝 例文: {{ quiz.example }}</p>
+</div>
+
+<script>
+    function checkAnswer(element, selected, correct) {
+        document.querySelectorAll('.quiz-option').forEach(opt => {
+            opt.style.pointerEvents = 'none';
+            if (opt.textContent.trim() === correct) {
+                opt.classList.add('correct');
+            } else if (opt === element) {
+                opt.classList.add('incorrect');
+            }
+        });
+
+        const result = document.getElementById('result');
+        result.style.display = 'block';
+
+        if (selected === correct) {
+            result.innerHTML = '<div style="padding: 16px; background: #e8f5e9; border-radius: 12px; color: #1b5e20;">🎉 正解！すごい！</div>';
+        } else {
+            result.innerHTML = '<div style="padding: 16px; background: #ffebee; border-radius: 12px; color: #b71c1c;">😢 残念... 正解は「' + correct + '」</div>';
+        }
+
+        document.getElementById('example').style.display = 'block';
+    }
+</script>
+{% endif %}
+
+{% if error %}
+<div class="alert alert-error">
+    {{ error }}
+</div>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,125 @@
+{% extends "base.html" %}
+
+{% block title %}問題データベース - 七夢学習{% endblock %}
+
+{% block content %}
+<div class="fade-in">
+    <div class="page-header">
+        <h1 class="page-title">📚 問題データベース</h1>
+        <a href="{{ url_for('create_problem') }}" class="btn btn-primary">＋ 新規問題作成（テスト配信）</a>
+    </div>
+
+    <!-- 検索フィルター（将来的に実装）
+    <div class="card" style="margin-bottom: 1.5rem; padding: 1rem;">
+        <input type="text" class="form-input" placeholder="問題タイトルや内容で検索...">
+    </div>
+    -->
+
+    <div class="card">
+        <div style="display:flex; justify-content:space-between; align-items:center;">
+            <h2 class="card-title" style="margin:0;">登録済み問題一覧 ({{ problems|length }})</h2>
+            <button type="button" class="btn btn-danger btn-sm" onclick="confirmBulkDelete()" id="bulk-delete-btn"
+                style="display:none;">選択した問題を削除</button>
+        </div>
+
+        {% if problems %}
+        <form id="bulk-delete-form" action="{{ url_for('bulk_delete_problems') }}" method="POST">
+            <div class="problem-list" style="margin-top: 1rem;">
+                {% for problem in problems %}
+                <div class="problem-card" style="display: block; position: relative;">
+                    <div style="position:absolute; top:12px; left:12px;">
+                        <input type="checkbox" name="problem_ids" value="{{ problem.id }}" class="bulk-check"
+                            style="width:18px; height:18px;" onchange="toggleBulkBtn()">
+                    </div>
+                    <div class="problem-header"
+                        style="justify-content: space-between; align-items: start; padding-left: 2rem;">
+                        <div>
+                            <h3 class="problem-title">{{ problem.title }}</h3>
+                            <div class="problem-meta">
+                                作成日: {{ problem.created_at|jst('%Y/%m/%d') }}
+                                {% if problem.problem_type == 'choice' %}
+                                <span class="status-badge" style="background:var(--bg-hover);">✅ 選択式(旧)</span>
+                                {% elif problem.problem_type == 'text' %}
+                                <span class="status-badge" style="background:var(--bg-hover);">📝 記述式(旧)</span>
+                                {% else %}
+                                <span class="status-badge" style="background:var(--primary); color:white;">✨ 複合</span>
+                                {% endif %}
+                            </div>
+                        </div>
+                        <div style="display: flex; gap: 8px;">
+                            <a href="{{ url_for('edit_problem', problem_id=problem.id) }}"
+                                class="btn btn-secondary btn-sm">✏️ 編集</a>
+                            <div style="display:inline;">
+                                <input type="hidden" name="redirect_to" value="manage_problems">
+                                <button type="button" class="btn btn-danger btn-sm"
+                                    onclick="if(confirm('本当に削除しますか？これに関連する生徒の回答も全て削除されます。')) { document.getElementById('single-delete-form-{{ problem.id }}').submit(); }">🗑️
+                                    削除</button>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="problem-preview" style="margin-top: 8px; padding-left: 2rem;">
+                        {{ problem.content|striptags|truncate(80) }}
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </form>
+
+        <!-- 個別削除用フォーム (ループ外には出せないため、JSで送信トリガーを引くか、form nestingを避ける工夫が必要) -->
+        <!-- Form nesting is invalid HTML. Better approach: Use a separate form for each delete button OUTSIDE the main form, or use JS to submit to different endpoints. -->
+        <!-- But wait, I wrapped the whole list in a form. The single delete buttons were forms. Nested forms are bad. -->
+        <!-- FIX: Change single delete buttons to simple buttons that submit a specific hidden form elsewhere, OR change the main bulk delete to not be a surrounding form but JS submission. -->
+        <!-- I will use JS submission for bulk delete to avoid nesting issues with existing single delete forms if I keep them as forms. -->
+        <!-- ACTUALLY, I'll remove the surrounding form and use JS to gather IDs and submit. -->
+
+        {% else %}
+        <div class="empty-state">
+            <div class="empty-icon">📂</div>
+            <p>登録された問題はありません。</p>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+{% for problem in problems %}
+<!-- 個別削除用フォーム -->
+<form id="single-delete-form-{{ problem.id }}" method="POST"
+    action="{{ url_for('delete_problem', problem_id=problem.id) }}" style="display:none;">
+    <input type="hidden" name="redirect_to" value="manage_problems">
+</form>
+{% endfor %}
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+    function toggleBulkBtn() {
+        const checks = document.querySelectorAll('.bulk-check:checked');
+        const btn = document.getElementById('bulk-delete-btn');
+        if (checks.length > 0) {
+            btn.style.display = 'block';
+            btn.textContent = `${checks.length}件を削除`;
+        } else {
+            btn.style.display = 'none';
+        }
+    }
+
+    function confirmBulkDelete() {
+        if (confirm('選択した問題を本当に削除しますか？\n関連する回答もすべて削除されます。')) {
+            const form = document.getElementById('bulk-delete-action-form');
+            form.innerHTML = ''; // clear
+            document.querySelectorAll('.bulk-check:checked').forEach(c => {
+                const input = document.createElement('input');
+                input.type = 'hidden';
+                input.name = 'problem_ids';
+                input.value = c.value;
+                form.appendChild(input);
+            });
+            form.submit();
+        }
+    }
+</script>
+<!-- Bulk Delete Submission Form -->
+<form id="bulk-delete-action-form" action="{{ url_for('bulk_delete_problems') }}" method="POST" style="display:none;">
+</form>
+{% endblock %}

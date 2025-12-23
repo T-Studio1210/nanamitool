@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+
+{% block title %}日本語学習管理 - 七夢学習アプリ{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1 class="page-title">🇯🇵 日本語学習管理</h1>
+</div>
+
+<!-- モード選択タブ -->
+<div class="card" style="margin-bottom: 24px;">
+    <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px;">
+        <a href="{{ url_for('teacher_japanese_problems') }}"
+            class="btn {% if mode == 'quiz' %}btn-primary{% else %}btn-secondary{% endif %}"
+            style="text-align: center;">
+            🎯 熟語クイズ<br><small>({{ quiz_count }}問)</small>
+        </a>
+        <a href="{{ url_for('teacher_flashcard_manage') }}"
+            class="btn {% if mode == 'flashcard' %}btn-primary{% else %}btn-secondary{% endif %}"
+            style="text-align: center;">
+            📖 フラッシュカード<br><small>({{ flashcard_count }}枚)</small>
+        </a>
+        <a href="{{ url_for('teacher_writing_manage') }}"
+            class="btn {% if mode == 'writing' %}btn-primary{% else %}btn-secondary{% endif %}"
+            style="text-align: center;">
+            ✍️ 書き取り練習<br><small>({{ writing_count }}字)</small>
+        </a>
+    </div>
+</div>
+
+{% block mode_content %}{% endblock %}
+{% endblock %}

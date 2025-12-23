@@ -1,0 +1,93 @@
+{% extends "base.html" %}
+
+{% block title %}問題に回答 - 七夢学習アプリ{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1 class="page-title">📬 先生からの問題</h1>
+    <a href="{{ url_for('japanese_dashboard') }}" class="btn btn-secondary btn-sm">← 戻る</a>
+</div>
+
+<div class="card">
+    <!-- 問題 -->
+    <div style="text-align: center; margin-bottom: 24px;">
+        <div style="font-size: 4rem; color: var(--primary); margin-bottom: 16px;">{{ quiz.word }}</div>
+        <p style="color: var(--text-muted);">この漢字の読み方は？</p>
+    </div>
+
+    <!-- 選択肢 -->
+    <div id="options" style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+        {% for option in options %}
+        <button class="btn btn-secondary option-btn"
+            onclick="checkAnswer('{{ option }}', '{{ quiz.correct_reading }}', {{ assignment.id }})"
+            style="padding: 16px; font-size: 1.2rem;">
+            {{ option }}
+        </button>
+        {% endfor %}
+    </div>
+
+    <!-- 結果表示 -->
+    <div id="result" style="display: none; text-align: center; margin-top: 24px;">
+        <div id="result-icon" style="font-size: 4rem;"></div>
+        <div id="result-text" style="font-size: 1.3rem; margin-top: 12px;"></div>
+        <div style="margin-top: 16px; padding: 16px; background: var(--bg-hover); border-radius: 12px;">
+            <div><strong>正解：</strong> {{ quiz.correct_reading }}</div>
+            <div style="margin-top: 8px;">🇨🇳 {{ quiz.meaning_chinese }}</div>
+            <div style="margin-top: 8px; color: var(--text-muted);">📝 {{ quiz.example }}</div>
+        </div>
+        <a href="{{ url_for('japanese_dashboard') }}" class="btn btn-primary btn-block" style="margin-top: 20px;">
+            📬 問題一覧に戻る
+        </a>
+    </div>
+</div>
+
+<script>
+    let answered = false;
+
+    function checkAnswer(selected, correct, assignmentId) {
+        if (answered) return;
+        answered = true;
+
+        const isCorrect = selected === correct;
+
+        // ボタン色を変える
+        document.querySelectorAll('.option-btn').forEach(btn => {
+            btn.disabled = true;
+            if (btn.textContent.trim() === correct) {
+                btn.style.background = 'linear-gradient(135deg, #4caf50, #8bc34a)';
+                btn.style.color = 'white';
+            } else if (btn.textContent.trim() === selected && !isCorrect) {
+                btn.style.background = 'linear-gradient(135deg, #f44336, #e53935)';
+                btn.style.color = 'white';
+            }
+        });
+
+        // 結果表示
+        const resultEl = document.getElementById('result');
+        const iconEl = document.getElementById('result-icon');
+        const textEl = document.getElementById('result-text');
+
+        resultEl.style.display = 'block';
+
+        if (isCorrect) {
+            iconEl.textContent = '🎉';
+            textEl.textContent = '正解です！すごい！';
+            textEl.style.color = '#4caf50';
+        } else {
+            iconEl.textContent = '😢';
+            textEl.textContent = '残念...もう一度覚えよう！';
+            textEl.style.color = '#f44336';
+        }
+
+        // サーバーに回答を送信
+        fetch('/japanese/assigned/answer', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                assignment_id: assignmentId,
+                is_correct: isCorrect
+            })
+        });
+    }
+</script>
+{% endblock %}

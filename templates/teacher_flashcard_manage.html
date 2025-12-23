@@ -1,0 +1,322 @@
+{% extends "base.html" %}
+
+{% block title %}フラッシュカード管理 - 七夢学習アプリ{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1 class="page-title">📖 フラッシュカード管理</h1>
+    <a href="{{ url_for('teacher_japanese_problems') }}" class="btn btn-secondary btn-sm">← 戻る</a>
+</div>
+
+<!-- モード選択 -->
+<div class="card" style="margin-bottom: 16px; padding: 12px;">
+    <div style="display: flex; gap: 8px; flex-wrap: wrap; justify-content: center;">
+        <a href="{{ url_for('teacher_kanji_list') }}" class="btn btn-secondary btn-sm">📚 漢字一覧</a>
+        <a href="{{ url_for('teacher_japanese_problems') }}" class="btn btn-secondary btn-sm">🎯 熟語クイズ</a>
+        <a href="{{ url_for('teacher_flashcard_manage') }}" class="btn btn-primary btn-sm">📖 フラッシュカード</a>
+        <a href="{{ url_for('teacher_writing_manage') }}" class="btn btn-secondary btn-sm">✍️ 書き取り</a>
+        <a href="{{ url_for('teacher_japanese_send') }}" class="btn btn-secondary btn-sm">📤 生徒に配信</a>
+    </div>
+</div>
+
+<!-- カード一覧 -->
+<div class="card">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+        <h2 class="card-title" style="margin: 0;">📋 登録済みカード ({{ cards|length }}枚)</h2>
+        <div>
+            <button type="button" class="btn btn-secondary btn-sm" onclick="toggleSelectAll()">全選択 / 解除</button>
+        </div>
+    </div>
+
+    {% if cards %}
+    <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 12px;">
+        {% for card in cards %}
+        <div class="flashcard-item"
+            style="padding: 16px; background: var(--bg-hover); border-radius: 12px; position: relative; border: 2px solid transparent; transition: all 0.2s;">
+            <!-- チェックボックス -->
+            <div style="position: absolute; top: 12px; left: 12px; z-index: 10;">
+                <input type="checkbox" class="card-checkbox" value="{{ card.id }}" onchange="updateBulkActions()"
+                    style="transform: scale(1.3); cursor: pointer;">
+            </div>
+
+            <!-- カードコンテンツ -->
+            <div style="margin-left: 24px;">
+                <div style="font-size: 1.8rem; font-weight: bold; margin-bottom: 4px;">{{ card.word }}</div>
+                <div style="color: var(--text-secondary); font-weight: bold;">{{ card.reading }}</div>
+                <div style="margin-top: 8px; font-size: 0.9rem; color: #444;">🇨🇳 {{ card.meaning }}</div>
+                <div style="margin-top: 4px; font-size: 0.85rem; color: #666; font-style: italic;">"{{ card.example }}"
+                </div>
+            </div>
+
+            <!-- アクション -->
+            <div style="position: absolute; top: 12px; right: 12px; display: flex; gap: 4px;">
+                <button type="button" class="btn btn-secondary btn-sm"
+                    onclick="openEditModal('{{ card.id }}', '{{ card.word }}', '{{ card.reading }}', '{{ card.meaning }}', '{{ card.example }}')"
+                    style="padding: 4px 8px; font-size: 0.8rem;">✏️</button>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="empty-state">
+        <div class="empty-icon">📭</div>
+        <p>まだカードがありません。下のフォームから追加するか、漢字一覧からAI生成してください。</p>
+        <a href="{{ url_for('teacher_kanji_list') }}" class="btn btn-primary" style="margin-top: 12px;">📚 漢字から作成</a>
+    </div>
+    {% endif %}
+</div>
+
+<!-- 追加フォーム -->
+<div class="card">
+    <h2 class="card-title">➕ カードを手動追加</h2>
+    <form method="POST" action="{{ url_for('add_flashcard') }}">
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+            <div class="form-group" style="margin-bottom: 0;">
+                <label class="form-label">漢字/熟語</label>
+                <input type="text" name="word" class="form-input" placeholder="例: 学校" required>
+            </div>
+            <div class="form-group" style="margin-bottom: 0;">
+                <label class="form-label">読み方</label>
+                <input type="text" name="reading" class="form-input" placeholder="例: がっこう" required>
+            </div>
+            <div class="form-group" style="margin-bottom: 0;">
+                <label class="form-label">中国語の意味</label>
+                <input type="text" name="meaning" class="form-input" placeholder="例: 学校 xuéxiào" required>
+            </div>
+            <div class="form-group" style="margin-bottom: 0;">
+                <label class="form-label">例文</label>
+                <input type="text" name="example" class="form-input" placeholder="例: 学校に行きます。">
+            </div>
+        </div>
+        <button type="submit" class="btn btn-primary btn-block" style="margin-top: 12px;">➕ 追加</button>
+    </form>
+</div>
+
+<!-- AI一括生成 -->
+<div class="card">
+    <h2 class="card-title">✨ AIで一括生成</h2>
+    <p style="margin-bottom: 12px; color: var(--text-secondary);">
+        特定の漢字を使ったカードを作りたい場合は <a href="{{ url_for('teacher_kanji_list') }}">漢字一覧</a> から作成するのがおすすめです。
+    </p>
+    <form method="POST" action="{{ url_for('generate_flashcards') }}">
+        <div style="display: flex; gap: 12px; align-items: end;">
+            <div class="form-group" style="margin-bottom: 0; flex: 1;">
+                <label class="form-label">テーマ（任意）</label>
+                <input type="text" name="theme" class="form-input" placeholder="例: 学校、動物、食べ物">
+            </div>
+            <div class="form-group" style="margin-bottom: 0;">
+                <label class="form-label">枚数</label>
+                <select name="count" class="form-input">
+                    <option value="5">5枚</option>
+                    <option value="10" selected>10枚</option>
+                </select>
+            </div>
+            <button type="submit" class="btn btn-primary" style="min-width: 120px;">
+                ✨ テーマ生成
+            </button>
+            <a href="{{ url_for('teacher_kanji_list') }}" class="btn btn-secondary">
+                📚 漢字から作成
+            </a>
+        </div>
+    </form>
+</div>
+
+<!-- 一括操作アクションバー -->
+<div id="bulkActionsBar"
+    style="position: fixed; bottom: 30px; left: 50%; transform: translateX(-50%); background: white; padding: 12px 24px; border-radius: 50px; box-shadow: 0 4px 20px rgba(0,0,0,0.2); display: none; align-items: center; gap: 16px; z-index: 1000; border: 1px solid var(--border-color);">
+    <span style="font-weight: bold; color: var(--text-primary);">
+        <span id="selectedCount">0</span>枚選択中
+    </span>
+    <div style="height: 20px; width: 1px; background: #ddd;"></div>
+    <button type="button" class="btn btn-primary btn-sm" onclick="openBulkSendModal()">
+        📤 一括配信
+    </button>
+    <button type="button" class="btn btn-danger btn-sm" onclick="confirmBulkDelete()">
+        🗑️ 削除
+    </button>
+    <button type="button" class="btn btn-text btn-sm" onclick="deselectAll()">
+        ✕ キャンセル
+    </button>
+</div>
+
+<!-- 一括削除用フォーム（非表示） -->
+<form id="bulkDeleteForm" method="POST" action="{{ url_for('bulk_delete_flashcards') }}" style="display: none;">
+    <input type="hidden" name="card_ids" id="bulkDeleteIds">
+</form>
+
+<!-- 編集モーダル -->
+<div id="editModal" class="modal">
+    <div class="modal-content">
+        <h2>✏️ カードを編集</h2>
+        <form method="POST" action="{{ url_for('edit_flashcard') }}">
+            <input type="hidden" name="card_id" id="editCardId">
+            <div class="form-group">
+                <label class="form-label">漢字/熟語</label>
+                <input type="text" name="word" id="editWord" class="form-input" required>
+            </div>
+            <div class="form-group">
+                <label class="form-label">読み方</label>
+                <input type="text" name="reading" id="editReading" class="form-input" required>
+            </div>
+            <div class="form-group">
+                <label class="form-label">中国語の意味</label>
+                <input type="text" name="meaning" id="editMeaning" class="form-input" required>
+            </div>
+            <div class="form-group">
+                <label class="form-label">例文</label>
+                <input type="text" name="example" id="editExample" class="form-input">
+            </div>
+            <div style="display: flex; justify-content: flex-end; gap: 8px; margin-top: 24px;">
+                <button type="button" class="btn btn-secondary" onclick="closeModal('editModal')">キャンセル</button>
+                <button type="submit" class="btn btn-primary">保存</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- 一括配信モーダル -->
+<div id="bulkSendModal" class="modal">
+    <div class="modal-content">
+        <h2 style="margin-top: 0;">📤 選択したカードを一括配信</h2>
+        <p>配信する生徒を選択してください：</p>
+
+        <form method="POST" action="{{ url_for('bulk_send_flashcards') }}">
+            <input type="hidden" name="card_ids" id="bulkSendCardIds">
+
+            <div
+                style="max-height: 300px; overflow-y: auto; border: 1px solid var(--border-color); border-radius: 8px; padding: 12px; margin-bottom: 20px;">
+                <div style="margin-bottom: 8px;">
+                    <label style="display: flex; align-items: center; gap: 8px; font-weight: bold;">
+                        <input type="checkbox" onclick="toggleStudentSelectAll(this)"> 全員選択
+                    </label>
+                </div>
+                <hr style="margin: 8px 0; border: none; border-top: 1px solid var(--border-color);">
+
+                {% for student in chinese_students %}
+                <div style="margin-bottom: 8px;">
+                    <label style="display: flex; align-items: center; gap: 8px;">
+                        <input type="checkbox" name="student_ids" value="{{ student.id }}" class="student-checkbox"
+                            checked>
+                        <span>{{ student.display_name }}</span>
+                        <span style="color: var(--text-secondary); font-size: 0.8rem;">({{ student.username }})</span>
+                    </label>
+                </div>
+                {% endfor %}
+            </div>
+
+            <div style="display: flex; justify-content: flex-end; gap: 8px;">
+                <button type="button" class="btn btn-secondary" onclick="closeModal('bulkSendModal')">キャンセル</button>
+                <button type="submit" class="btn btn-primary">配信する</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+    // 編集モーダル
+    function openEditModal(id, word, reading, meaning, example) {
+        document.getElementById('editCardId').value = id;
+        document.getElementById('editWord').value = word;
+        document.getElementById('editReading').value = reading;
+        document.getElementById('editMeaning').value = meaning;
+        document.getElementById('editExample').value = example;
+
+        document.getElementById('editModal').style.display = 'flex';
+    }
+
+    // 共通モーダル制御
+    function closeModal(modalId) {
+        document.getElementById(modalId).style.display = 'none';
+    }
+
+    window.onclick = function (event) {
+        if (event.target.classList.contains('modal')) {
+            event.target.style.display = 'none';
+        }
+    }
+
+    // 複数選択機能
+    const selectedCards = new Set();
+    const checkboxes = document.querySelectorAll('.card-checkbox');
+    const bulkBar = document.getElementById('bulkActionsBar');
+    const countSpan = document.getElementById('selectedCount');
+
+    function updateBulkActions() {
+        selectedCards.clear();
+        checkboxes.forEach(cb => {
+            if (cb.checked) {
+                selectedCards.add(cb.value);
+                cb.closest('.flashcard-item').style.borderColor = 'var(--primary-color)';
+                cb.closest('.flashcard-item').style.background = '#f0f9ff';
+            } else {
+                cb.closest('.flashcard-item').style.borderColor = 'transparent';
+                cb.closest('.flashcard-item').style.background = 'var(--bg-hover)';
+            }
+        });
+
+        countSpan.textContent = selectedCards.size;
+        if (selectedCards.size > 0) {
+            bulkBar.style.display = 'flex';
+        } else {
+            bulkBar.style.display = 'none';
+        }
+
+        // フォームへの反映
+        document.getElementById('bulkDeleteIds').value = Array.from(selectedCards).join(',');
+        document.getElementById('bulkSendCardIds').value = Array.from(selectedCards).join(',');
+    }
+
+    function toggleSelectAll() {
+        const allChecked = Array.from(checkboxes).every(cb => cb.checked);
+        checkboxes.forEach(cb => cb.checked = !allChecked);
+        updateBulkActions();
+    }
+
+    function deselectAll() {
+        checkboxes.forEach(cb => cb.checked = false);
+        updateBulkActions();
+    }
+
+    function confirmBulkDelete() {
+        if (selectedCards.size === 0) return;
+        if (confirm(`${selectedCards.size}枚のカードを削除してよろしいですか？`)) {
+            document.getElementById('bulkDeleteForm').submit();
+        }
+    }
+
+    function openBulkSendModal() {
+        if (selectedCards.size === 0) return;
+        document.getElementById('bulkSendModal').style.display = 'flex';
+    }
+
+    function toggleStudentSelectAll(source) {
+        const checkboxes = document.querySelectorAll('.student-checkbox');
+        checkboxes.forEach(cb => cb.checked = source.checked);
+    }
+</script>
+
+<style>
+    .modal {
+        display: none;
+        position: fixed;
+        z-index: 2000;
+        left: 0;
+        top: 0;
+        width: 100%;
+        height: 100%;
+        background-color: rgba(0, 0, 0, 0.5);
+        align-items: center;
+        justify-content: center;
+    }
+
+    .modal-content {
+        background-color: white;
+        padding: 24px;
+        border-radius: 16px;
+        width: 90%;
+        max-width: 500px;
+        max-height: 90vh;
+        overflow-y: auto;
+    }
+</style>
+{% endblock %}

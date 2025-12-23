@@ -1,0 +1,199 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="header-actions">
+    <h1>📝 生徒の学習評価・フィードバック</h1>
+</div>
+
+<div class="feedback-container">
+    {% for task in tasks %}
+    <div class="feedback-card" data-type="{{ task.type }}">
+        <div class="feedback-header">
+            <span class="student-name">{{ task.student_name }}</span>
+            <span class="task-date">{{ task.completed_at|jst('%Y/%m/%d %H:%M') }}</span>
+        </div>
+        <div class="task-info">
+            <span class="task-type-badge type-{{ task.type }}">
+                {% if task.type == 'quiz' %}🎯 クイズ
+                {% elif task.type == 'flashcard' %}📖 カード
+                {% elif task.type == 'writing' %}✍️ 書き取り{% endif %}
+            </span>
+            <span class="task-title">{{ task.title }}</span>
+            <span class="task-status status-{{ task.status }}">
+                {% if task.status == 'correct' %}✅ 正解
+                {% elif task.status == 'incorrect' %}❌ 不正解
+                {% elif task.status == 'learned' %}✅ 覚えた
+                {% else %}✅ 完了{% endif %}
+            </span>
+        </div>
+
+        <form action="{{ url_for('save_feedback') }}" method="POST" class="feedback-form">
+            <input type="hidden" name="type" value="{{ task.type }}">
+            <input type="hidden" name="id" value="{{ task.id }}">
+            <div class="feedback-input-group">
+                <textarea name="feedback" placeholder="先生からのコメントを入力..." rows="2">{{ task.feedback or '' }}</textarea>
+                <button type="submit" class="save-btn">保存</button>
+            </div>
+        </form>
+    </div>
+    {% else %}
+    <p class="no-data">完了済みの課題はありません。</p>
+    {% endfor %}
+</div>
+
+<style>
+    .header-actions {
+        margin-bottom: 2rem;
+    }
+
+    .feedback-container {
+        display: grid;
+        gap: 1rem;
+        max-width: 800px;
+        margin: 0 auto;
+    }
+
+    .feedback-card {
+        background: white;
+        padding: 1.5rem;
+        border-radius: 8px;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+        border-left: 5px solid #ccc;
+        transition: transform 0.2s;
+    }
+
+    .feedback-card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+    }
+
+    .feedback-card[data-type="quiz"] {
+        border-left-color: #9c27b0;
+    }
+
+    .feedback-card[data-type="flashcard"] {
+        border-left-color: #3f51b5;
+    }
+
+    .feedback-card[data-type="writing"] {
+        border-left-color: #009688;
+    }
+
+    .feedback-header {
+        display: flex;
+        justify-content: space-between;
+        margin-bottom: 1rem;
+        border-bottom: 1px solid #eee;
+        padding-bottom: 0.5rem;
+    }
+
+    .student-name {
+        font-weight: bold;
+        font-size: 1.1rem;
+        color: #333;
+    }
+
+    .task-date {
+        color: #888;
+        font-size: 0.9rem;
+    }
+
+    .task-info {
+        display: flex;
+        align-items: center;
+        gap: 0.8rem;
+        margin-bottom: 1rem;
+        flex-wrap: wrap;
+    }
+
+    .task-type-badge {
+        font-size: 0.85rem;
+        padding: 4px 8px;
+        border-radius: 4px;
+        font-weight: bold;
+    }
+
+    .type-quiz {
+        background: #e1bee7;
+        color: #4a148c;
+    }
+
+    .type-flashcard {
+        background: #c5cae9;
+        color: #1a237e;
+    }
+
+    .type-writing {
+        background: #b2dfdb;
+        color: #004d40;
+    }
+
+    .task-title {
+        font-weight: bold;
+    }
+
+    .task-status {
+        margin-left: auto;
+        font-size: 0.9rem;
+        color: #4caf50;
+        font-weight: bold;
+    }
+
+    .feedback-input-group {
+        display: flex;
+        gap: 0.5rem;
+        align-items: flex-start;
+    }
+
+    textarea {
+        flex: 1;
+        padding: 0.8rem;
+        border: 1px solid #ddd;
+        border-radius: 6px;
+        resize: vertical;
+        min-height: 60px;
+        font-family: inherit;
+        transition: border-color 0.2s;
+    }
+
+    textarea:focus {
+        border-color: #2196f3;
+        outline: none;
+    }
+
+    .save-btn {
+        background: #2196f3;
+        color: white;
+        border: none;
+        padding: 0.8rem 1.5rem;
+        border-radius: 6px;
+        cursor: pointer;
+        font-weight: bold;
+        transition: background 0.2s;
+        align-self: flex-start;
+        height: 100%;
+    }
+
+    .save-btn:hover {
+        background: #1976d2;
+    }
+
+    .no-data {
+        text-align: center;
+        color: #666;
+        padding: 2rem;
+        background: #f5f5f5;
+        border-radius: 8px;
+    }
+
+    @media (max-width: 600px) {
+        .feedback-input-group {
+            flex-direction: column;
+        }
+
+        .save-btn {
+            width: 100%;
+        }
+    }
+</style>
+{% endblock %}

@@ -1,0 +1,121 @@
+{% extends "base.html" %}
+
+{% block title %}{{ student.display_name }}の学習状況 - 石川七夢講師専用学習アプリ{% endblock %}
+
+{% block content %}
+<div class="fade-in">
+    <div class="page-header">
+        <h1 class="page-title">📊 {{ student.display_name }}の学習状況</h1>
+        <a href="{{ url_for('manage_students') }}" class="btn btn-secondary">← 生徒一覧に戻る</a>
+    </div>
+
+    <!-- 統計サマリー -->
+    <div class="stats-grid" style="margin-bottom: 1.5rem;">
+        <!-- 完了率プログレスバー -->
+        <div class="stat-card" style="grid-column: span 2;">
+            <div class="stat-icon" style="background: linear-gradient(135deg, #e91e8c, #ff6b9d);">📈</div>
+            <div style="width: 100%;">
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <div class="stat-label">学習進捗</div>
+                    <div class="stat-value" style="font-size: 1.5rem;">{{ stats.completion_rate }}%</div>
+                </div>
+                <div
+                    style="width: 100%; height: 16px; background: #eee; border-radius: 8px; margin-top: 10px; overflow: hidden;">
+                    <div
+                        style="width: {{ stats.completion_rate }}%; height: 100%; background: linear-gradient(90deg, #e91e8c, #ff6b9d); transition: width 0.5s;">
+                    </div>
+                </div>
+                <div style="font-size: 0.85rem; color: #666; margin-top: 8px;">
+                    {{ stats.answered }} / {{ stats.total }} 問 完了
+                </div>
+            </div>
+        </div>
+
+        <!-- 回答済み -->
+        <div class="stat-card">
+            <div class="stat-icon" style="background: #4caf50;">✅</div>
+            <div>
+                <div class="stat-label">回答済み</div>
+                <div class="stat-value">{{ stats.answered }}</div>
+            </div>
+        </div>
+
+        <!-- 未回答 -->
+        <div class="stat-card">
+            <div class="stat-icon" style="background: #ff9800;">⏳</div>
+            <div>
+                <div class="stat-label">未回答</div>
+                <div class="stat-value">{{ stats.unanswered }}</div>
+            </div>
+        </div>
+
+        <!-- フィードバック済み -->
+        <div class="stat-card">
+            <div class="stat-icon" style="background: #2196f3;">💬</div>
+            <div>
+                <div class="stat-label">FB済み</div>
+                <div class="stat-value">{{ stats.with_feedback }}</div>
+            </div>
+        </div>
+
+        <!-- 確認待ち -->
+        <div class="stat-card">
+            <div class="stat-icon" style="background: #9c27b0;">📤</div>
+            <div>
+                <div class="stat-label">確認待ち</div>
+                <div class="stat-value">{{ stats.pending_feedback }}</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 問題別詳細 -->
+    <div class="card">
+        <h2 class="card-title">📋 問題別の進捗</h2>
+
+        {% if problem_stats %}
+        <div class="problem-list">
+            {% for item in problem_stats %}
+            <div class="problem-card"
+                style="cursor: default; {% if item.status == 'feedback_received' %}border-left: 4px solid #4caf50;{% elif item.status == 'answered' %}border-left: 4px solid #ff9800;{% else %}border-left: 4px solid #e0e0e0;{% endif %}">
+                <div class="problem-header">
+                    <h3 class="problem-title">{{ item.problem.title }}</h3>
+                    <div style="display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;">
+                        <!-- ステータスバッジ -->
+                        {% if item.status == 'feedback_received' %}
+                        <span class="status-badge status-reviewed">✓ フィードバック済み</span>
+                        {% if item.feedback_status.score is not none %}
+                        <span class="status-badge" style="background: #e3f2fd; color: #1976d2;">{{
+                            item.feedback_status.score }}点</span>
+                        {% endif %}
+                        {% elif item.status == 'answered' %}
+                        <span class="status-badge status-pending">⏳ 確認待ち</span>
+                        {% else %}
+                        <span class="status-badge" style="background: #eee; color: #999;">📝 未回答</span>
+                        {% endif %}
+
+                        <span class="problem-date">{{ item.problem.created_at|jst('%Y/%m/%d') }}</span>
+                    </div>
+                </div>
+
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 0.5rem;">
+                    <div class="problem-preview" style="margin: 0; flex: 1;">{{
+                        item.problem.content|striptags|truncate(60) }}</div>
+
+                    {% if item.answer %}
+                    <a href="{{ url_for('view_answer', answer_id=item.answer.id) }}" class="btn btn-secondary btn-sm">
+                        回答を見る →
+                    </a>
+                    {% endif %}
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <div class="empty-state">
+            <div class="empty-icon">📭</div>
+            <p>まだ問題が割り当てられていません。</p>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

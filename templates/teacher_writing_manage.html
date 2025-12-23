@@ -1,0 +1,334 @@
+{% extends "base.html" %}
+
+{% block title %}書き取り練習管理 - 七夢学習アプリ{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1 class="page-title">✍️ 書き取り練習管理</h1>
+    <a href="{{ url_for('teacher_japanese_problems') }}" class="btn btn-secondary btn-sm">← 戻る</a>
+</div>
+
+<!-- モード選択 -->
+<div class="card" style="margin-bottom: 16px; padding: 12px;">
+    <div style="display: flex; gap: 8px; flex-wrap: wrap; justify-content: center;">
+        <a href="{{ url_for('teacher_kanji_list') }}" class="btn btn-secondary btn-sm">📚 漢字一覧</a>
+        <a href="{{ url_for('teacher_japanese_problems') }}" class="btn btn-secondary btn-sm">🎯 熟語クイズ</a>
+        <a href="{{ url_for('teacher_flashcard_manage') }}" class="btn btn-secondary btn-sm">📖 フラッシュカード</a>
+        <a href="{{ url_for('teacher_writing_manage') }}" class="btn btn-primary btn-sm">✍️ 書き取り</a>
+        <a href="{{ url_for('teacher_japanese_send') }}" class="btn btn-secondary btn-sm">📤 生徒に配信</a>
+    </div>
+</div>
+
+<!-- 漢字一覧 -->
+<div class="card">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+        <h2 class="card-title" style="margin: 0;">📋 登録済み漢字 ({{ writings|length }}字)</h2>
+        <div>
+            <button type="button" class="btn btn-secondary btn-sm" onclick="toggleSelectAll()">全選択 / 解除</button>
+        </div>
+    </div>
+
+    {% if writings %}
+    <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 12px;">
+        {% for writing in writings %}
+        <div class="writing-item"
+            style="padding: 16px; background: var(--bg-hover); border-radius: 12px; text-align: center; position: relative; border: 2px solid transparent; transition: all 0.2s;">
+            <!-- チェックボックス -->
+            <div style="position: absolute; top: 8px; left: 8px; z-index: 10;">
+                <input type="checkbox" class="writing-checkbox" value="{{ writing.id }}" onchange="updateBulkActions()"
+                    style="transform: scale(1.3); cursor: pointer;">
+            </div>
+
+            <div style="font-size: 2.5rem; font-weight: bold; color: var(--primary); margin-top: 8px;">{{ writing.word
+                }}</div>
+            <div style="color: var(--text-secondary); font-size: 0.9rem;">{{ writing.reading }}</div>
+            <div style="margin-top: 4px; font-size: 0.8rem;">🇨🇳 {{ writing.meaning[:20] }}{% if writing.meaning|length
+                > 20 %}...{% endif %}</div>
+
+            <!-- 編集ボタン -->
+            <button type="button" class="btn btn-secondary btn-sm"
+                onclick="openEditModal('{{ writing.id }}', '{{ writing.word }}', '{{ writing.reading }}', '{{ writing.meaning }}', '{{ writing.example }}', '{{ writing.stroke_count or '' }}')"
+                style="position: absolute; top: 8px; right: 8px; padding: 2px 6px; font-size: 0.8rem;">✏️</button>
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="empty-state">
+        <div class="empty-icon">📭</div>
+        <p>まだ漢字がありません。下のフォームから追加するか、漢字一覧からAI生成してください。</p>
+        <a href="{{ url_for('teacher_kanji_list') }}" class="btn btn-primary" style="margin-top: 12px;">📚 漢字から作成</a>
+    </div>
+    {% endif %}
+</div>
+
+<!-- 追加フォーム -->
+<div class="card">
+    <h2 class="card-title">➕ 漢字を手動追加</h2>
+    <form method="POST" action="{{ url_for('add_writing') }}">
+        <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px;">
+            <div class="form-group" style="margin-bottom: 0;">
+                <label class="form-label">漢字（1〜2文字）</label>
+                <input type="text" name="word" class="form-input" placeholder="例: 学" maxlength="2" required>
+            </div>
+            <div class="form-group" style="margin-bottom: 0;">
+                <label class="form-label">読み方</label>
+                <input type="text" name="reading" class="form-input" placeholder="例: がく / まなぶ" required>
+            </div>
+            <div class="form-group" style="margin-bottom: 0;">
+                <label class="form-label">画数</label>
+                <input type="number" name="stroke_count" class="form-input" placeholder="例: 8">
+            </div>
+        </div>
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 12px;">
+            <div class="form-group" style="margin-bottom: 0;">
+                <label class="form-label">中国語の意味</label>
+                <input type="text" name="meaning" class="form-input" placeholder="例: 学 xué - 学ぶ" required>
+            </div>
+            <div class="form-group" style="margin-bottom: 0;">
+                <label class="form-label">例文</label>
+                <input type="text" name="example" class="form-input" placeholder="例: 学校で勉強します。">
+            </div>
+        </div>
+        <button type="submit" class="btn btn-primary btn-block" style="margin-top: 12px;">➕ 追加</button>
+    </form>
+</div>
+
+<!-- AI一括生成 -->
+<div class="card">
+    <h2 class="card-title">✨ AIで一括生成</h2>
+    <p style="margin-bottom: 12px; color: var(--text-secondary);">
+        特定の漢字を使った練習問題を作りたい場合は <a href="{{ url_for('teacher_kanji_list') }}">漢字一覧</a> から作成するのがおすすめです。
+    </p>
+    <form method="POST" action="{{ url_for('generate_writings') }}">
+        <div style="display: flex; gap: 12px; align-items: end;">
+            <div class="form-group" style="margin-bottom: 0; flex: 1;">
+                <label class="form-label">レベル</label>
+                <select name="level" class="form-input">
+                    <option value="easy">かんたん（小1-2）</option>
+                    <option value="medium" selected>ふつう（小3-4）</option>
+                    <option value="hard">むずかしい（小5-6）</option>
+                </select>
+            </div>
+            <div class="form-group" style="margin-bottom: 0;">
+                <label class="form-label">文字数</label>
+                <select name="count" class="form-input">
+                    <option value="5">5字</option>
+                    <option value="10" selected>10字</option>
+                </select>
+            </div>
+            <button type="submit" class="btn btn-primary" style="min-width: 120px;">
+                ✨ ランダム生成
+            </button>
+            <a href="{{ url_for('teacher_kanji_list') }}" class="btn btn-secondary">
+                📚 漢字から作成
+            </a>
+        </div>
+    </form>
+</div>
+
+<!-- 一括操作アクションバー -->
+<div id="bulkActionsBar"
+    style="position: fixed; bottom: 30px; left: 50%; transform: translateX(-50%); background: white; padding: 12px 24px; border-radius: 50px; box-shadow: 0 4px 20px rgba(0,0,0,0.2); display: none; align-items: center; gap: 16px; z-index: 1000; border: 1px solid var(--border-color);">
+    <span style="font-weight: bold; color: var(--text-primary);">
+        <span id="selectedCount">0</span>問選択中
+    </span>
+    <div style="height: 20px; width: 1px; background: #ddd;"></div>
+    <button type="button" class="btn btn-primary btn-sm" onclick="openBulkSendModal()">
+        📤 一括配信
+    </button>
+    <button type="button" class="btn btn-danger btn-sm" onclick="confirmBulkDelete()">
+        🗑️ 削除
+    </button>
+    <button type="button" class="btn btn-text btn-sm" onclick="deselectAll()">
+        ✕ キャンセル
+    </button>
+</div>
+
+<!-- 一括削除用フォーム（非表示） -->
+<form id="bulkDeleteForm" method="POST" action="{{ url_for('bulk_delete_writings') }}" style="display: none;">
+    <input type="hidden" name="writing_ids" id="bulkDeleteIds">
+</form>
+
+<!-- 編集モーダル -->
+<div id="editModal" class="modal">
+    <div class="modal-content">
+        <h2>✏️ 漢字を編集</h2>
+        <form method="POST" action="{{ url_for('edit_writing') }}">
+            <input type="hidden" name="writing_id" id="editWritingId">
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+                <div class="form-group">
+                    <label class="form-label">漢字</label>
+                    <input type="text" name="word" id="editWord" class="form-input" required maxlength="2">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">画数</label>
+                    <input type="number" name="stroke_count" id="editStroke" class="form-input">
+                </div>
+            </div>
+            <div class="form-group">
+                <label class="form-label">読み方</label>
+                <input type="text" name="reading" id="editReading" class="form-input" required>
+            </div>
+            <div class="form-group">
+                <label class="form-label">中国語の意味</label>
+                <input type="text" name="meaning" id="editMeaning" class="form-input" required>
+            </div>
+            <div class="form-group">
+                <label class="form-label">例文</label>
+                <input type="text" name="example" id="editExample" class="form-input">
+            </div>
+            <div style="display: flex; justify-content: flex-end; gap: 8px; margin-top: 24px;">
+                <button type="button" class="btn btn-secondary" onclick="closeModal('editModal')">キャンセル</button>
+                <button type="submit" class="btn btn-primary">保存</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- 一括配信モーダル -->
+<div id="bulkSendModal" class="modal">
+    <div class="modal-content">
+        <h2 style="margin-top: 0;">📤 選択した問題を一括配信</h2>
+        <p>配信する生徒を選択してください：</p>
+
+        <form method="POST" action="{{ url_for('bulk_send_writings') }}">
+            <input type="hidden" name="writing_ids" id="bulkSendWritingIds">
+
+            <div
+                style="max-height: 300px; overflow-y: auto; border: 1px solid var(--border-color); border-radius: 8px; padding: 12px; margin-bottom: 20px;">
+                <div style="margin-bottom: 8px;">
+                    <label style="display: flex; align-items: center; gap: 8px; font-weight: bold;">
+                        <input type="checkbox" onclick="toggleStudentSelectAll(this)"> 全員選択
+                    </label>
+                </div>
+                <hr style="margin: 8px 0; border: none; border-top: 1px solid var(--border-color);">
+
+                {% for student in chinese_students %}
+                <div style="margin-bottom: 8px;">
+                    <label style="display: flex; align-items: center; gap: 8px;">
+                        <input type="checkbox" name="student_ids" value="{{ student.id }}" class="student-checkbox"
+                            checked>
+                        <span>{{ student.display_name }}</span>
+                        <span style="color: var(--text-secondary); font-size: 0.8rem;">({{ student.username }})</span>
+                    </label>
+                </div>
+                {% endfor %}
+            </div>
+
+            <div style="display: flex; justify-content: flex-end; gap: 8px;">
+                <button type="button" class="btn btn-secondary" onclick="closeModal('bulkSendModal')">キャンセル</button>
+                <button type="submit" class="btn btn-primary">配信する</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+    // 編集モーダル
+    function openEditModal(id, word, reading, meaning, example, stroke) {
+        document.getElementById('editWritingId').value = id;
+        document.getElementById('editWord').value = word;
+        document.getElementById('editReading').value = reading;
+        document.getElementById('editMeaning').value = meaning;
+        document.getElementById('editExample').value = example;
+        document.getElementById('editStroke').value = stroke;
+
+        document.getElementById('editModal').style.display = 'flex';
+    }
+
+    // 共通モーダル制御
+    function closeModal(modalId) {
+        document.getElementById(modalId).style.display = 'none';
+    }
+
+    window.onclick = function (event) {
+        if (event.target.classList.contains('modal')) {
+            event.target.style.display = 'none';
+        }
+    }
+
+    // 複数選択機能
+    const selectedWritings = new Set();
+    const checkboxes = document.querySelectorAll('.writing-checkbox');
+    const bulkBar = document.getElementById('bulkActionsBar');
+    const countSpan = document.getElementById('selectedCount');
+
+    function updateBulkActions() {
+        selectedWritings.clear();
+        checkboxes.forEach(cb => {
+            if (cb.checked) {
+                selectedWritings.add(cb.value);
+                cb.closest('.writing-item').style.borderColor = 'var(--primary-color)';
+                cb.closest('.writing-item').style.background = '#f0f9ff';
+            } else {
+                cb.closest('.writing-item').style.borderColor = 'transparent';
+                cb.closest('.writing-item').style.background = 'var(--bg-hover)';
+            }
+        });
+
+        countSpan.textContent = selectedWritings.size;
+        if (selectedWritings.size > 0) {
+            bulkBar.style.display = 'flex';
+        } else {
+            bulkBar.style.display = 'none';
+        }
+
+        // フォームへの反映
+        document.getElementById('bulkDeleteIds').value = Array.from(selectedWritings).join(',');
+        document.getElementById('bulkSendWritingIds').value = Array.from(selectedWritings).join(',');
+    }
+
+    function toggleSelectAll() {
+        const allChecked = Array.from(checkboxes).every(cb => cb.checked);
+        checkboxes.forEach(cb => cb.checked = !allChecked);
+        updateBulkActions();
+    }
+
+    function deselectAll() {
+        checkboxes.forEach(cb => cb.checked = false);
+        updateBulkActions();
+    }
+
+    function confirmBulkDelete() {
+        if (selectedWritings.size === 0) return;
+        if (confirm(`${selectedWritings.size}問の書き取り練習を削除してよろしいですか？`)) {
+            document.getElementById('bulkDeleteForm').submit();
+        }
+    }
+
+    function openBulkSendModal() {
+        if (selectedWritings.size === 0) return;
+        document.getElementById('bulkSendModal').style.display = 'flex';
+    }
+
+    function toggleStudentSelectAll(source) {
+        const checkboxes = document.querySelectorAll('.student-checkbox');
+        checkboxes.forEach(cb => cb.checked = source.checked);
+    }
+</script>
+
+<style>
+    .modal {
+        display: none;
+        position: fixed;
+        z-index: 2000;
+        left: 0;
+        top: 0;
+        width: 100%;
+        height: 100%;
+        background-color: rgba(0, 0, 0, 0.5);
+        align-items: center;
+        justify-content: center;
+    }
+
+    .modal-content {
+        background-color: white;
+        padding: 24px;
+        border-radius: 16px;
+        width: 90%;
+        max-width: 500px;
+        max-height: 90vh;
+        overflow-y: auto;
+    }
+</style>
+{% endblock %}

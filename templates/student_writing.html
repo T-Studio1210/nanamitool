@@ -1,0 +1,1156 @@
+{% extends "base.html" %}
+
+{% block content %}
+<style>
+    .problem-container {
+        max-width: 900px;
+        margin: 0 auto;
+        padding: 2rem;
+    }
+
+    .back-link {
+        display: inline-block;
+        margin-bottom: 1rem;
+        color: #666;
+        text-decoration: none;
+    }
+
+    .back-link:hover {
+        text-decoration: underline;
+    }
+
+    .completion-banner {
+        background: #e8f5e9;
+        padding: 1rem;
+        border-radius: 8px;
+        margin-bottom: 1rem;
+        border: 1px solid #c8e6c9;
+    }
+
+    .teacher-feedback {
+        margin-top: 1rem;
+        padding-top: 1rem;
+        border-top: 1px dashed #aaa;
+    }
+
+    .writing-card {
+        background: white;
+        padding: 2rem;
+        border-radius: 12px;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    }
+
+    .kanji-display {
+        text-align: center;
+        margin-bottom: 2rem;
+    }
+
+    .kanji-large {
+        font-family: 'Klee One', 'Zen Kurenaido', 'YuKyokasho', serif;
+        font-size: 10rem;
+        color: #333;
+        display: inline-block;
+        line-height: 1.1;
+    }
+
+    .info-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 1rem;
+        margin-bottom: 2rem;
+        text-align: left;
+    }
+
+    .info-box {
+        background: #f5f5f5;
+        padding: 1rem;
+        border-radius: 8px;
+    }
+
+    .info-label {
+        font-size: 0.85rem;
+        color: #666;
+        margin-bottom: 0.3rem;
+    }
+
+    .info-value {
+        font-size: 1.1rem;
+        color: #333;
+        font-weight: 500;
+    }
+
+    .info-value.reading {
+        color: #d32f2f;
+        font-size: 1.3rem;
+    }
+
+    .audio-section {
+        margin: 1.5rem 0;
+        display: flex;
+        gap: 0.5rem;
+        justify-content: center;
+        flex-wrap: wrap;
+    }
+
+    .audio-btn {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        border: none;
+        padding: 0.8rem 1.5rem;
+        font-size: 1rem;
+        border-radius: 50px;
+        cursor: pointer;
+        box-shadow: 0 4px 6px rgba(102, 126, 234, 0.3);
+        transition: all 0.2s;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    .audio-btn:hover {
+        transform: translateY(-2px);
+    }
+
+    /* 書き順アニメーションセクション */
+    .stroke-animation-section {
+        background: linear-gradient(135deg, #e8f5e9 0%, #c8e6c9 100%);
+        border: 2px solid #4caf50;
+        border-radius: 12px;
+        padding: 1.5rem;
+        margin: 1.5rem 0;
+        text-align: center;
+    }
+
+    .stroke-animation-title {
+        color: #2e7d32;
+        font-weight: bold;
+        font-size: 1.2rem;
+        margin-bottom: 1rem;
+    }
+
+    .animation-container {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        gap: 2rem;
+        flex-wrap: wrap;
+        margin-bottom: 1rem;
+    }
+
+    .kanji-animation-box {
+        width: 250px;
+        height: 250px;
+        background: white;
+        border: 3px solid #81c784;
+        border-radius: 12px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        position: relative;
+        overflow: hidden;
+    }
+
+    #kanji-svg {
+        width: 220px;
+        height: 220px;
+    }
+
+    #kanji-svg path {
+        fill: none;
+        stroke: #333;
+        stroke-width: 4;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+    }
+
+    .animation-controls {
+        display: flex;
+        gap: 0.5rem;
+        justify-content: center;
+        flex-wrap: wrap;
+    }
+
+    .anim-btn {
+        padding: 0.8rem 1.5rem;
+        border: none;
+        border-radius: 50px;
+        cursor: pointer;
+        font-weight: bold;
+        transition: all 0.2s;
+    }
+
+    .anim-btn.play {
+        background: #4caf50;
+        color: white;
+    }
+
+    .anim-btn.play:hover {
+        background: #388e3c;
+    }
+
+    .anim-btn.reset {
+        background: #ff9800;
+        color: white;
+    }
+
+    .anim-btn.reset:hover {
+        background: #f57c00;
+    }
+
+    .anim-btn.step {
+        background: #2196f3;
+        color: white;
+    }
+
+    .anim-btn.step:hover {
+        background: #1976d2;
+    }
+
+    .stroke-counter {
+        margin-top: 1rem;
+        font-size: 1.2rem;
+        color: #2e7d32;
+        font-weight: bold;
+    }
+
+    .loading-indicator {
+        color: #666;
+        font-style: italic;
+    }
+
+    /* 例文セクション */
+    .example-section {
+        background: linear-gradient(135deg, #e3f2fd 0%, #bbdefb 100%);
+        border: 2px solid #2196f3;
+        border-radius: 12px;
+        padding: 1.5rem;
+        margin: 1.5rem 0;
+        text-align: left;
+    }
+
+    .example-title {
+        color: #1565c0;
+        font-weight: bold;
+        font-size: 1rem;
+        margin-bottom: 0.8rem;
+    }
+
+    .example-text {
+        font-size: 1.2rem;
+        color: #333;
+        line-height: 1.8;
+    }
+
+    /* 書き方ガイド */
+    .stroke-guide {
+        background: linear-gradient(135deg, #fff3e0 0%, #ffe0b2 100%);
+        border: 2px solid #ff9800;
+        border-radius: 12px;
+        padding: 1.5rem;
+        margin: 1.5rem 0;
+    }
+
+    .stroke-guide-title {
+        color: #e65100;
+        font-weight: bold;
+        font-size: 1.1rem;
+        margin-bottom: 1rem;
+        text-align: center;
+    }
+
+    .stroke-types {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 1rem;
+        text-align: center;
+    }
+
+    .stroke-type {
+        background: white;
+        padding: 1rem;
+        border-radius: 8px;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    }
+
+    .stroke-icon {
+        font-size: 2.5rem;
+        display: block;
+        margin-bottom: 0.5rem;
+    }
+
+    .stroke-name {
+        font-weight: bold;
+        color: #333;
+        margin-bottom: 0.3rem;
+    }
+
+    .stroke-desc {
+        font-size: 0.85rem;
+        color: #666;
+    }
+
+    /* 中国人向け注意 */
+    .attention-section {
+        background: linear-gradient(135deg, #ffebee 0%, #ffcdd2 100%);
+        border: 2px solid #f44336;
+        border-radius: 12px;
+        padding: 1.5rem;
+        margin: 1.5rem 0;
+        text-align: left;
+    }
+
+    .attention-title {
+        color: #c62828;
+        font-weight: bold;
+        font-size: 1.1rem;
+        margin-bottom: 0.8rem;
+    }
+
+    .attention-list {
+        list-style: none;
+        padding: 0;
+        margin: 0;
+    }
+
+    .attention-list li {
+        padding: 0.5rem 0;
+        border-bottom: 1px dashed #ef9a9a;
+        color: #333;
+    }
+
+    .attention-list li:last-child {
+        border-bottom: none;
+    }
+
+    .attention-list li::before {
+        content: "⚠️ ";
+    }
+
+    /* なぞり練習 */
+    .practice-section {
+        margin-top: 2rem;
+        border: 3px solid #4caf50;
+        border-radius: 12px;
+        background: white;
+        padding: 1.5rem;
+    }
+
+    .practice-title {
+        text-align: center;
+        color: #2e7d32;
+        margin-bottom: 1rem;
+    }
+
+    .practice-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+        gap: 1rem;
+    }
+
+    .practice-box {
+        position: relative;
+        aspect-ratio: 1;
+        border: 2px solid #ddd;
+        border-radius: 8px;
+        overflow: hidden;
+        background: #fafafa;
+        container-type: size;
+    }
+
+    .trace-guide {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-family: 'Klee One', 'YuKyokasho', serif;
+        font-size: 80cqh;
+        /* 親コンテナの高さの80% */
+        line-height: 1;
+        color: rgba(0, 0, 0, 0.12);
+        pointer-events: none;
+        z-index: 1;
+    }
+
+    /* Fallback for browsers not supporting container queries */
+    @supports not (font-size: 80cqh) {
+        .trace-guide {
+            font-size: 10rem;
+        }
+    }
+
+    .cross-guide {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background-image:
+            linear-gradient(to right, transparent 49.5%, #e0e0e0 49.5%, #e0e0e0 50.5%, transparent 50.5%),
+            linear-gradient(to bottom, transparent 49.5%, #e0e0e0 49.5%, #e0e0e0 50.5%, transparent 50.5%);
+        z-index: 0;
+        pointer-events: none;
+    }
+
+    .practice-canvas {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        z-index: 2;
+        touch-action: none;
+    }
+
+    .canvas-controls {
+        display: flex;
+        gap: 0.5rem;
+        margin-top: 1rem;
+        justify-content: center;
+        flex-wrap: wrap;
+    }
+
+    .practice-box-wrapper {
+        display: flex;
+        flex-direction: column;
+        gap: 0.5rem;
+    }
+
+    .box-controls {
+        display: flex;
+        gap: 0.3rem;
+        justify-content: center;
+    }
+
+    .mini-btn {
+        padding: 0.3rem 0.6rem;
+        font-size: 0.8rem;
+        background: #f5f5f5;
+        border: 1px solid #ccc;
+        border-radius: 4px;
+        cursor: pointer;
+    }
+
+    .mini-btn:hover {
+        background: #e0e0e0;
+    }
+
+    .control-btn {
+        padding: 0.5rem 1rem;
+        background: #f5f5f5;
+        border: 1px solid #ccc;
+        border-radius: 4px;
+        cursor: pointer;
+    }
+
+    .control-btn:hover {
+        background: #e0e0e0;
+    }
+
+    .complete-section {
+        text-align: center;
+        margin-top: 2rem;
+    }
+
+    .complete-btn {
+        background: linear-gradient(135deg, #4caf50 0%, #2e7d32 100%);
+        color: white;
+        border: none;
+        padding: 1rem 3rem;
+        font-size: 1.2rem;
+        border-radius: 50px;
+        cursor: pointer;
+        box-shadow: 0 4px 6px rgba(76, 175, 80, 0.3);
+    }
+
+    .complete-btn:hover {
+        transform: translateY(-2px);
+    }
+</style>
+
+<div class="problem-container">
+    <a href="{{ url_for('dashboard') }}" class="back-link">← ダッシュボードに戻る</a>
+
+    <h2>✍️ 書き取り練習</h2>
+
+    <!-- ナビゲーションバー -->
+    <div
+        style="display: flex; justify-content: space-between; align-items: center; background: #f5f5f5; padding: 0.75rem 1rem; border-radius: 8px; margin-bottom: 1rem;">
+        {% if nav.prev_id %}
+        <a href="{{ url_for('student_writing', assignment_id=nav.prev_id) }}"
+            style="padding: 0.5rem 1rem; background: #2196f3; color: white; border: none; border-radius: 6px; text-decoration: none; font-size: 0.9rem;">←
+            前の問題</a>
+        {% else %}
+        <span style="padding: 0.5rem 1rem; background: #ccc; color: white; border-radius: 6px; font-size: 0.9rem;">←
+            前の問題</span>
+        {% endif %}
+
+        <div style="display: flex; gap: 6px; align-items: center;">
+            {% for item in nav.group_items %}
+            <a href="{{ url_for('student_writing', assignment_id=item.id) }}"
+                style="width: 12px; height: 12px; border-radius: 50%; display: inline-block;
+                      {% if item.id == assignment.id %}background: #2196f3; transform: scale(1.3);{% elif item.teacher_feedback %}background: #ff9800;{% elif item.completed %}background: #4caf50;{% else %}background: #ddd;{% endif %}"
+                title="{{ item.writing.word }} {% if item.completed %}(完了){% endif %}{% if item.teacher_feedback %} - フィードバックあり{% endif %}">
+            </a>
+            {% endfor %}
+        </div>
+        <span style="font-weight: bold; color: #333; margin: 0 1rem;">{{ nav.current }} / {{ nav.total }}</span>
+
+        {% if nav.next_id %}
+        <a href="{{ url_for('student_writing', assignment_id=nav.next_id) }}"
+            style="padding: 0.5rem 1rem; background: #2196f3; color: white; border: none; border-radius: 6px; text-decoration: none; font-size: 0.9rem;">次の問題
+            →</a>
+        {% else %}
+        <span style="padding: 0.5rem 1rem; background: #ccc; color: white; border-radius: 6px; font-size: 0.9rem;">次の問題
+            →</span>
+        {% endif %}
+    </div>
+
+    {% if assignment.completed %}
+    <div class="completion-banner">
+        <h3>✅ この問題は練習済みです</h3>
+        <div class="completed-date">完了日: {{ assignment.completed_at|jst('%Y/%m/%d %H:%M') }}</div>
+        <p style="margin: 0.5rem 0 0; font-size: 0.9rem; color: #666;">再度練習して提出し直すこともできます。</p>
+    </div>
+    {% endif %}
+
+    {% if assignment.teacher_feedback %}
+    <div
+        style="margin-bottom: 1rem; padding: 1rem; background: #fff3e0; border: 1px solid #ffcc80; border-radius: 8px;">
+        <h4 style="margin: 0 0 0.5rem 0; font-size: 1rem; color: #e65100;">💬 先生からのフィードバック:</h4>
+        <div>{{ assignment.teacher_feedback }}</div>
+    </div>
+    {% endif %}
+
+    <div class="writing-card">
+        <div class="kanji-display">
+            <span class="kanji-large">{{ assignment.writing.word }}</span>
+        </div>
+
+        <div class="audio-section">
+            <button type="button" class="audio-btn" onclick="speakWord()">🔊 漢字を読む</button>
+            <button type="button" class="audio-btn" onclick="speakReading()">🔊 読み方: {{ assignment.writing.reading
+                }}</button>
+        </div>
+
+        <div class="info-grid">
+            <div class="info-box">
+                <div class="info-label">読み方</div>
+                <div class="info-value reading">{{ assignment.writing.reading }}</div>
+            </div>
+            <div class="info-box">
+                <div class="info-label">意味（中国語）</div>
+                <div class="info-value">{{ assignment.writing.meaning }}</div>
+            </div>
+            {% if assignment.writing.stroke_count %}
+            <div class="info-box">
+                <div class="info-label">画数</div>
+                <div class="info-value">{{ assignment.writing.stroke_count }}画</div>
+            </div>
+            {% endif %}
+        </div>
+
+        <!-- 書き順アニメーション（KanjiVG使用） -->
+        <div class="stroke-animation-section">
+            <div class="stroke-animation-title">📝 書き順アニメーション</div>
+            <div class="animation-container">
+                <div class="kanji-animation-box">
+                    <div id="kanji-svg-container">
+                        <p class="loading-indicator">書き順データを読み込み中...</p>
+                    </div>
+                </div>
+            </div>
+            <div class="stroke-counter" id="stroke-counter">準備中...</div>
+            <div class="animation-controls">
+                <button class="anim-btn play" onclick="playAnimation()">▶️ 再生</button>
+                <button class="anim-btn step" onclick="nextStroke()">⏭️ 次の画</button>
+                <button class="anim-btn reset" onclick="resetAnimation()">🔄 最初から</button>
+            </div>
+            <p style="margin-top: 1rem; color: #666; font-size: 0.9rem;">
+                ※ 赤い線が現在の画です。KanjiVGデータを使用しています。
+            </p>
+        </div>
+
+        <!-- 例文 -->
+        <div class="example-section">
+            <div class="example-title">📝 例文</div>
+            <div class="example-text" id="example-text">
+                {% if assignment.writing.example %}
+                {{ assignment.writing.example }}
+                {% else %}
+                <span id="generated-example"></span>
+                {% endif %}
+            </div>
+            <button type="button" class="audio-btn" style="margin-top: 1rem; font-size: 0.9rem; padding: 0.5rem 1rem;"
+                onclick="speakExample()">
+                🔊 例文を読む
+            </button>
+        </div>
+
+        <!-- 書き方のポイント -->
+        <div class="stroke-guide">
+            <div class="stroke-guide-title">✍️ 書き方のポイント</div>
+            <div class="stroke-types">
+                <div class="stroke-type">
+                    <span class="stroke-icon">■</span>
+                    <div class="stroke-name">止め（とめ）</div>
+                    <div class="stroke-desc">筆をしっかり止めて終わる</div>
+                </div>
+                <div class="stroke-type">
+                    <span class="stroke-icon">↗</span>
+                    <div class="stroke-name">跳ね（はね）</div>
+                    <div class="stroke-desc">筆を跳ね上げて終わる</div>
+                </div>
+                <div class="stroke-type">
+                    <span class="stroke-icon">〜</span>
+                    <div class="stroke-name">払い（はらい）</div>
+                    <div class="stroke-desc">筆を払って細く終わる</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 中国人向け注意点 -->
+        <div class="attention-section">
+            <div class="attention-title">🇨🇳 中国人学習者への注意点</div>
+            <ul class="attention-list" id="attention-list"></ul>
+        </div>
+
+        <!-- なぞり練習 -->
+        <div class="practice-section">
+            <h3 class="practice-title">📝 なぞって練習しよう</h3>
+            <p style="text-align: center; color: #666; margin-bottom: 1rem;">薄い文字をなぞって練習しましょう</p>
+            <div class="practice-grid">
+                <div class="practice-box-wrapper">
+                    <div class="practice-box">
+                        <div class="cross-guide"></div>
+                        <div class="trace-guide">{{ assignment.writing.word }}</div>
+                        <canvas class="practice-canvas" id="canvas1"></canvas>
+                    </div>
+                    <div class="box-controls">
+                        <button class="mini-btn" onclick="undoCanvas(0)">↩️ 戻す</button>
+                        <button class="mini-btn" onclick="clearCanvas(0)">🗑️</button>
+                    </div>
+                </div>
+                <div class="practice-box-wrapper">
+                    <div class="practice-box">
+                        <div class="cross-guide"></div>
+                        <div class="trace-guide">{{ assignment.writing.word }}</div>
+                        <canvas class="practice-canvas" id="canvas2"></canvas>
+                    </div>
+                    <div class="box-controls">
+                        <button class="mini-btn" onclick="undoCanvas(1)">↩️ 戻す</button>
+                        <button class="mini-btn" onclick="clearCanvas(1)">🗑️</button>
+                    </div>
+                </div>
+                <div class="practice-box-wrapper">
+                    <div class="practice-box">
+                        <div class="cross-guide"></div>
+                        <div class="trace-guide">{{ assignment.writing.word }}</div>
+                        <canvas class="practice-canvas" id="canvas3"></canvas>
+                    </div>
+                    <div class="box-controls">
+                        <button class="mini-btn" onclick="undoCanvas(2)">↩️ 戻す</button>
+                        <button class="mini-btn" onclick="clearCanvas(2)">🗑️</button>
+                    </div>
+                </div>
+                <div class="practice-box-wrapper">
+                    <div class="practice-box">
+                        <div class="cross-guide"></div>
+                        <div class="trace-guide" style="color: transparent;">{{ assignment.writing.word }}</div>
+                        <canvas class="practice-canvas" id="canvas4"></canvas>
+                    </div>
+                    <div class="box-controls">
+                        <button class="mini-btn" onclick="undoCanvas(3)">↩️ 戻す</button>
+                        <button class="mini-btn" onclick="clearCanvas(3)">🗑️</button>
+                    </div>
+                </div>
+            </div>
+            <div class="canvas-controls">
+                <button class="control-btn" onclick="undoAllCanvases()">↩️ 全て1つ戻す</button>
+                <button class="control-btn" onclick="clearAllCanvases()">🗑️ 全てクリア</button>
+                <button class="control-btn" onclick="toggleGuide()">👁️ ガイド表示切替</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="complete-section">
+        <p id="validation-message" style="color: #f44336; margin-bottom: 1rem; display: none;">
+            ⚠️ 4マス全てに練習してから提出してください
+        </p>
+        <form method="POST" id="complete-form" onsubmit="return validateSubmission()">
+            <input type="hidden" name="action" value="complete">
+            <input type="hidden" name="result_image" id="result-image-input">
+            <button type="submit" class="complete-btn">
+                {% if assignment.completed %}🔄 再提出して更新{% else %}✅ 練習完了！{% endif %}
+            </button>
+        </form>
+    </div>
+</div>
+
+<script>
+    const word = "{{ assignment.writing.word }}";
+    const reading = "{{ assignment.writing.reading }}";
+    const strokeCountFromDB = {{ assignment.writing.stroke_count or 0 }};
+
+    // 音声読み上げ
+    function speakText(text) {
+        if ('speechSynthesis' in window) {
+            speechSynthesis.cancel();
+            const u = new SpeechSynthesisUtterance(text);
+            u.lang = 'ja-JP';
+            u.rate = 0.8;
+            const voices = speechSynthesis.getVoices();
+            const jpVoice = voices.find(v => v.lang.includes('ja'));
+            if (jpVoice) u.voice = jpVoice;
+            speechSynthesis.speak(u);
+        }
+    }
+
+    function speakWord() { speakText(word); }
+    function speakReading() { speakText(reading); }
+    function speakExample() {
+        const ex = document.getElementById('example-text').textContent;
+        speakText(ex);
+    }
+
+    if ('speechSynthesis' in window) {
+        speechSynthesis.getVoices();
+        speechSynthesis.onvoiceschanged = () => speechSynthesis.getVoices();
+    }
+
+    // KanjiVG データ読み込みと書き順アニメーション
+    let strokePaths = [];
+    let currentStroke = 0;
+    let totalStrokes = 0;
+    let animationInterval = null;
+
+    async function loadKanjiVG() {
+        const char = word[0];
+        const codePoint = char.charCodeAt(0).toString(16).padStart(5, '0');
+
+        // KanjiVG CDNからSVGを取得
+        const urls = [
+            `https://raw.githubusercontent.com/KanjiVG/kanjivg/master/kanji/${codePoint}.svg`,
+            `https://cdn.jsdelivr.net/gh/KanjiVG/kanjivg@master/kanji/${codePoint}.svg`
+        ];
+
+        let svgText = null;
+        for (const url of urls) {
+            try {
+                const response = await fetch(url);
+                if (response.ok) {
+                    svgText = await response.text();
+                    break;
+                }
+            } catch (e) {
+                console.log('Failed to fetch from:', url);
+            }
+        }
+
+        const container = document.getElementById('kanji-svg-container');
+
+        if (svgText) {
+            // SVGをパース
+            const parser = new DOMParser();
+            const svgDoc = parser.parseFromString(svgText, 'image/svg+xml');
+            const svg = svgDoc.querySelector('svg');
+
+            if (svg) {
+                // SVGのサイズを調整
+                svg.setAttribute('width', '220');
+                svg.setAttribute('height', '220');
+                svg.setAttribute('id', 'kanji-svg');
+
+                // すべてのパスを取得
+                const paths = svg.querySelectorAll('path');
+                strokePaths = Array.from(paths);
+                totalStrokes = strokePaths.length;
+
+                // 初期状態：すべて非表示
+                strokePaths.forEach(path => {
+                    path.style.stroke = '#333';
+                    path.style.strokeWidth = '4';
+                    path.style.fill = 'none';
+                    path.style.opacity = '0';
+                });
+
+                container.innerHTML = '';
+                container.appendChild(svg);
+
+                updateCounter();
+                return;
+            }
+        }
+
+        // KanjiVGデータがない場合はフォールバック
+        container.innerHTML = `
+            <div style="font-size: 120px; font-family: 'Klee One', serif; color: #333;">
+                ${char}
+            </div>
+            <p style="position: absolute; bottom: 5px; font-size: 0.8rem; color: #999;">
+                書き順データなし
+            </p>
+        `;
+        totalStrokes = strokeCountFromDB || 1;
+        updateCounter();
+    }
+
+    function updateCounter() {
+        document.getElementById('stroke-counter').textContent =
+            `${currentStroke} / ${totalStrokes} 画`;
+    }
+
+    function showStrokes(upTo) {
+        strokePaths.forEach((path, index) => {
+            if (index < upTo) {
+                path.style.opacity = '1';
+                path.style.stroke = (index === upTo - 1) ? '#e53935' : '#333';
+                path.style.strokeWidth = (index === upTo - 1) ? '6' : '4';
+            } else {
+                path.style.opacity = '0';
+            }
+        });
+    }
+
+    function playAnimation() {
+        if (animationInterval) clearInterval(animationInterval);
+        currentStroke = 0;
+        showStrokes(0);
+
+        animationInterval = setInterval(() => {
+            if (currentStroke < totalStrokes) {
+                currentStroke++;
+                showStrokes(currentStroke);
+                updateCounter();
+            } else {
+                clearInterval(animationInterval);
+            }
+        }, 600);
+    }
+
+    function nextStroke() {
+        if (currentStroke < totalStrokes) {
+            currentStroke++;
+            showStrokes(currentStroke);
+            updateCounter();
+        }
+    }
+
+    function resetAnimation() {
+        if (animationInterval) clearInterval(animationInterval);
+        currentStroke = 0;
+        showStrokes(0);
+        updateCounter();
+    }
+
+    // ページ読み込み時にKanjiVGデータを取得
+    loadKanjiVG();
+
+    // 例文自動生成
+    {% if not assignment.writing.example %}
+    const examples = {
+        '天': '今日は天気がいいです。', '気': '気をつけて帰ってね。', '空': '空がとても青いです。',
+        '山': '富士山は日本で一番高い山です。', '川': '川で泳ぐのは気持ちいい。', '海': '夏は海で泳ぎたいです。',
+        '花': '桜の花がきれいに咲いています。', '雨': '明日は雨が降るでしょう。', '雪': '冬に雪が降ります。',
+        '風': '今日は風が強いです。', '火': '火を使うときは注意してください。', '水': '水を飲んでください。',
+        '土': '土を触ると手が汚れます。', '金': '金曜日に会いましょう。', '木': '木の下で休みましょう。',
+        '日': '日曜日は休みです。', '月': '月がきれいに見えます。', '年': '新しい年が始まりました。',
+        '人': 'たくさんの人がいます。', '子': '子どもたちが遊んでいます。', '女': '女の人が歩いています。',
+        '男': '男の人が走っています。', '学': '日本語を学んでいます。', '校': '学校に行きます。',
+        '先': '先生に聞いてください。', '生': '生徒が教室にいます。', '本': '本を読むのが好きです。',
+        '文': '文を書きましょう。', '字': '字をきれいに書いてください。', '語': '日本語を話せますか。',
+        '読': '本を読みました。', '書': '手紙を書きました。', '話': '友達と話しました。',
+        '聞': '音楽を聞きます。', '見': 'テレビを見ます。', '食': '朝ご飯を食べました。',
+        '飲': 'お茶を飲みました。', '行': '学校に行きます。', '来': '友達が来ました。',
+        '帰': '家に帰ります。', '買': '本を買いました。', '売': 'お店で売っています。',
+        '入': '部屋に入ります。', '出': '外に出ます。', '立': '立ってください。',
+        '座': '座ってください。', '走': '公園を走ります。', '歩': '道を歩きます。',
+        '止': 'ここで止まってください。', '休': '少し休みましょう。', '寝': 'もう寝ます。',
+        '起': '朝早く起きます。', '開': 'ドアを開けてください。', '閉': '窓を閉めてください。',
+        '始': '授業が始まります。', '終': '授業が終わりました。', '作': '料理を作ります。',
+        '使': 'パソコンを使います。', '働': '会社で働いています。', '遊': '公園で遊びます。',
+        '泳': 'プールで泳ぎます。', '乗': 'バスに乗ります。', '降': '電車を降ります。',
+        '待': 'ここで待ってください。', '持': '荷物を持ちます。', '送': '手紙を送ります。',
+        '届': '荷物が届きました。', '届': '荷物が届きました。', '届': '荷物が届きました。',
+        '会': '友達に会いました。', '別': 'お別れを言いました。', '知': '彼を知っています。',
+        '思': 'そう思います。', '考': 'よく考えてください。', '分': '意味が分かりました。',
+        '教': '日本語を教えています。', '習': '漢字を習います。', '覚': '単語を覚えます。',
+        '忘': '約束を忘れないでください。', '答': '質問に答えてください。', '問': '問題を解きます。',
+        '試': '試験を受けます。', '合': '試験に合格しました。', '落': '試験に落ちました。',
+        '受': '手紙を受け取りました。', '取': '写真を取りました。', '選': '好きな色を選んでください。',
+        '決': '予定を決めました。', '変': '天気が変わりました。', '同': '同じ意見です。',
+        '違': '答えが違います。', '正': '正しい答えです。', '間': '間違えました。',
+        '早': '早く起きてください。', '遅': '遅くなってすみません。', '長': '髪が長いです。',
+        '短': '時間が短いです。', '高': '山が高いです。', '低': '声が低いです。',
+        '大': '大きい犬がいます。', '小': '小さい猫がいます。', '多': '人が多いです。',
+        '少': '時間が少ないです。', '新': '新しい本を買いました。', '古': '古い建物です。',
+        '若': '若い人が多いです。', '老': '老人を助けました。', '明': '部屋が明るいです。',
+        '暗': '夜は暗いです。', '強': '風が強いです。', '弱': '体が弱いです。',
+        '重': '荷物が重いです。', '軽': 'かばんが軽いです。', '広': '部屋が広いです。',
+        '狭': '道が狭いです。', '深': '川が深いです。', '浅': 'プールが浅いです。',
+        '熱': 'お湯が熱いです。', '冷': '水が冷たいです。', '温': 'お風呂が温かいです。',
+        '涼': '風が涼しいです。', '暖': '部屋が暖かいです。', '寒': '今日は寒いです。',
+        '暑': '夏は暑いです。', '甘': 'ケーキが甘いです。', '辛': 'カレーが辛いです。',
+        '苦': 'コーヒーが苦いです。', '酸': 'レモンが酸っぱいです。', '塩': '塩を入れすぎました。',
+        '白': '雪が白いです。', '黒': '髪が黒いです。', '赤': 'りんごが赤いです。',
+        '青': '空が青いです。', '黄': 'バナナが黄色いです。', '緑': '葉が緑色です。',
+        '色': '好きな色は何ですか。', '形': '丸い形です。', '音': '音楽を聴きます。',
+        '声': '大きな声で話してください。', '顔': '顔を洗いました。', '頭': '頭が痛いです。',
+        '目': '目が疲れました。', '耳': '耳で聞きます。', '口': '口を開けてください。',
+        '鼻': '鼻が高いです。', '歯': '歯を磨きます。', '舌': '舌が痛いです。',
+        '首': '首が痛いです。', '肩': '肩がこりました。', '腕': '腕が長いです。',
+        '手': '手を洗いましょう。', '指': '指を動かしてください。', '爪': '爪を切りました。',
+        '胸': '胸が痛いです。', '腹': 'お腹が空きました。', '背': '背が高いです。',
+        '腰': '腰が痛いです。', '足': '足が疲れました。', '膝': '膝を曲げてください。',
+        '心': '心を込めて作りました。', '力': '力を合わせて頑張りましょう。', '体': '体を動かしましょう。',
+        '病': '病気になりました。', '医': '医者に行きました。', '薬': '薬を飲みました。',
+        '痛': '頭が痛いです。', '元': '元気ですか。', '健': '健康が大切です。',
+        '康': '健康に気をつけてください。', '父': '父は会社員です。', '母': '母は料理が上手です。',
+        '兄': '兄は大学生です。', '姉': '姉は看護師です。', '弟': '弟はまだ小学生です。',
+        '妹': '妹は高校生です。', '親': '親に感謝しています。', '家': '家に帰ります。',
+        '族': '家族は4人です。', '友': '友達と遊びました。', '達': '友達がたくさんいます。'
+    };
+
+    const el = document.getElementById('generated-example');
+    if (el) {
+        let ex = '';
+        for (const char of word) {
+            if (examples[char]) { ex = examples[char]; break; }
+        }
+        el.textContent = ex || `「${word}」を使って文を作ってみましょう。`;
+    }
+    {% endif %}
+
+    // 注意ポイント
+    const attentionPoints = {
+        '天': ['上の横線のほうが長いです'],
+        '入': ['「人」と間違えやすい'],
+        '人': ['「入」と間違えやすい'],
+        '道': ['しんにょうは最後に書く'],
+        '過': ['しんにょうは最後に書く'],
+        '返': ['しんにょうは最後に書く'],
+        '学': ['子の上に「⺍」がつく'],
+        '黒': ['下は「灬」4つの点'],
+        '点': ['下は「灬」4つの点'],
+        '熱': ['下は「灬」4つの点'],
+        '草': ['草かんむりは3画'],
+        '花': ['草かんむりは3画'],
+        '葉': ['草かんむりは3画'],
+        '説': ['言べんは7画'],
+        '話': ['言べんは7画'],
+        '読': ['言べんは7画'],
+        '語': ['言べんは7画'],
+        '青': ['月の中は2本線'],
+        '直': ['目の中は3本線'],
+        '具': ['目の中は2本線'],
+        '令': ['最後は点'],
+        '今': ['最後は点'],
+        '会': ['下は「云」'],
+        '雲': ['下は「云」'],
+        'default': ['書き順を意識しましょう', 'とめ・はね・はらいに注意']
+    };
+
+    function showAttention() {
+        const list = document.getElementById('attention-list');
+        let points = [];
+        for (const char of word) {
+            if (attentionPoints[char]) {
+                points = points.concat(attentionPoints[char].map(p => `「${char}」: ${p}`));
+            }
+        }
+        if (points.length === 0) points = attentionPoints['default'];
+        list.innerHTML = points.map(p => `<li>${p}</li>`).join('');
+    }
+    showAttention();
+
+    // キャンバス（履歴機能付き）
+    const canvases = ['canvas1', 'canvas2', 'canvas3', 'canvas4'].map(id => {
+        const canvas = document.getElementById(id);
+        const ctx = canvas.getContext('2d');
+        return { canvas, ctx, isDrawing: false, lastX: 0, lastY: 0, history: [], currentPath: [] };
+    });
+
+    function initCanvas(c) {
+        const parent = c.canvas.parentElement;
+        c.canvas.width = parent.clientWidth;
+        c.canvas.height = parent.clientHeight;
+        c.ctx.strokeStyle = '#333';
+        c.ctx.lineWidth = Math.max(4, c.canvas.width / 40);
+        c.ctx.lineCap = 'round';
+        c.ctx.lineJoin = 'round';
+    }
+
+    function redrawCanvas(c) {
+        c.ctx.clearRect(0, 0, c.canvas.width, c.canvas.height);
+        c.ctx.strokeStyle = '#333';
+        c.ctx.lineWidth = Math.max(4, c.canvas.width / 40);
+        c.ctx.lineCap = 'round';
+        c.ctx.lineJoin = 'round';
+
+        // 履歴を再描画
+        for (const path of c.history) {
+            if (path.length < 2) continue;
+            c.ctx.beginPath();
+            c.ctx.moveTo(path[0].x, path[0].y);
+            for (let i = 1; i < path.length; i++) {
+                c.ctx.lineTo(path[i].x, path[i].y);
+            }
+            c.ctx.stroke();
+        }
+    }
+
+    function setupCanvas(c) {
+        const getPos = (e) => {
+            const rect = c.canvas.getBoundingClientRect();
+            let x, y;
+            if (e.touches) { x = e.touches[0].clientX; y = e.touches[0].clientY; }
+            else { x = e.clientX; y = e.clientY; }
+            return {
+                x: (x - rect.left) * (c.canvas.width / rect.width),
+                y: (y - rect.top) * (c.canvas.height / rect.height)
+            };
+        };
+
+        const start = (e) => {
+            c.isDrawing = true;
+            const pos = getPos(e);
+            c.lastX = pos.x;
+            c.lastY = pos.y;
+            c.currentPath = [{ x: pos.x, y: pos.y }];
+        };
+
+        const draw = (e) => {
+            if (!c.isDrawing) return;
+            const pos = getPos(e);
+            c.ctx.beginPath();
+            c.ctx.moveTo(c.lastX, c.lastY);
+            c.ctx.lineTo(pos.x, pos.y);
+            c.ctx.stroke();
+            c.lastX = pos.x;
+            c.lastY = pos.y;
+            c.currentPath.push({ x: pos.x, y: pos.y });
+        };
+
+        const stop = () => {
+            if (c.isDrawing && c.currentPath.length > 1) {
+                c.history.push([...c.currentPath]);
+            }
+            c.isDrawing = false;
+            c.currentPath = [];
+        };
+
+        c.canvas.addEventListener('mousedown', start);
+        c.canvas.addEventListener('mousemove', draw);
+        c.canvas.addEventListener('mouseup', stop);
+        c.canvas.addEventListener('mouseout', stop);
+        c.canvas.addEventListener('touchstart', (e) => { e.preventDefault(); start(e); }, { passive: false });
+        c.canvas.addEventListener('touchmove', (e) => { e.preventDefault(); draw(e); }, { passive: false });
+        c.canvas.addEventListener('touchend', stop);
+    }
+
+    canvases.forEach(c => { initCanvas(c); setupCanvas(c); });
+    window.addEventListener('resize', () => canvases.forEach(c => { initCanvas(c); redrawCanvas(c); }));
+
+    // 個別のキャンバス操作
+    function undoCanvas(index) {
+        const c = canvases[index];
+        if (c.history.length > 0) {
+            c.history.pop();
+            redrawCanvas(c);
+        }
+    }
+
+    function clearCanvas(index) {
+        const c = canvases[index];
+        c.history = [];
+        c.ctx.clearRect(0, 0, c.canvas.width, c.canvas.height);
+    }
+
+    // 全体の操作
+    function undoAllCanvases() {
+        canvases.forEach(c => {
+            if (c.history.length > 0) {
+                c.history.pop();
+                redrawCanvas(c);
+            }
+        });
+    }
+
+    function clearAllCanvases() {
+        canvases.forEach(c => {
+            c.history = [];
+            c.ctx.clearRect(0, 0, c.canvas.width, c.canvas.height);
+        });
+    }
+
+    let guideVisible = true;
+    function toggleGuide() {
+        guideVisible = !guideVisible;
+        document.querySelectorAll('.trace-guide').forEach((el, i) => {
+            if (i < 3) el.style.opacity = guideVisible ? '1' : '0';
+        });
+    }
+
+    // 提出前バリデーション
+    function validateSubmission() {
+        const emptyBoxes = [];
+        canvases.forEach((c, index) => {
+            if (c.history.length === 0) {
+                emptyBoxes.push(index + 1);
+            }
+        });
+
+        if (emptyBoxes.length > 0) {
+            const msg = document.getElementById('validation-message');
+            if (msg) {
+                msg.style.display = 'block';
+                msg.textContent = `⚠️ ${emptyBoxes.join('、')}番目のマスに練習してください（全4マス必須）`;
+            }
+            // 空のマスにスクロール
+            document.querySelector('.practice-section').scrollIntoView({ behavior: 'smooth' });
+            return false;
+        }
+
+        // 画像結合処理：4つのキャンバスを1枚の画像にする
+        try {
+            const w = canvases[0].canvas.width;
+            const h = canvases[0].canvas.height;
+            const combinedCanvas = document.createElement('canvas');
+            combinedCanvas.width = w * 4;
+            combinedCanvas.height = h;
+            const ctx = combinedCanvas.getContext('2d');
+
+            // 背景を白にする
+            ctx.fillStyle = '#ffffff';
+            ctx.fillRect(0, 0, combinedCanvas.width, combinedCanvas.height);
+
+            canvases.forEach((cObj, i) => {
+                // 各キャンバスを描画
+                ctx.drawImage(cObj.canvas, w * i, 0);
+
+                // 区切り線
+                if (i > 0) {
+                    ctx.beginPath();
+                    ctx.moveTo(w * i, 0);
+                    ctx.lineTo(w * i, h);
+                    ctx.strokeStyle = '#ddd';
+                    ctx.lineWidth = 2;
+                    ctx.stroke();
+                }
+            });
+
+            // Base64データをセット
+            const dataURL = combinedCanvas.toDataURL('image/png');
+            document.getElementById('result-image-input').value = dataURL;
+        } catch (e) {
+            console.error('Canvas export error:', e);
+            // 画像生成に失敗しても提出はブロックしない（ただし画像なしになる）
+        }
+
+        return true;
+    }
+</script>
+{% endblock %}

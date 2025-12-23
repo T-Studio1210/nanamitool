@@ -1,0 +1,256 @@
+{% extends "base.html" %}
+
+{% block title %}回答を編集 - 石川七夢講師専用学習アプリ{% endblock %}
+
+{% block content %}
+<div class="fade-in">
+    <div class="page-header">
+        <h1 class="page-title">✏️ 回答を編集</h1>
+        <a href="{{ url_for('view_problem', problem_id=answer.problem.id) }}" class="btn btn-secondary">← 戻る</a>
+    </div>
+
+    <!-- 問題内容 -->
+    <div class="card" style="margin-bottom: 1.5rem;">
+        <h2 class="card-title">📋 問題: {{ answer.problem.title }}</h2>
+        <div class="editor-container" style="min-height: auto;">
+            <div class="ql-container ql-snow" style="border: none;">
+                <div class="ql-editor">{{ answer.problem.content|safe }}</div>
+            </div>
+        </div>
+    </div>
+
+    <form id="answer-form" method="POST" action="{{ url_for('edit_answer', answer_id=answer.id) }}">
+        <div class="card">
+            <h2 class="card-title">✏️ 回答を編集</h2>
+            <div class="editor-container">
+                {% if answer.problem.problem_type == 'mixed' %}
+                <!-- 複合問題（ウィジェットはJSで置換） -->
+                <div id="mixed-problem-description" style="margin-bottom: 1rem; color: var(--text-secondary);">
+                    ※ 問題文の中にある入力欄を編集してください。
+                </div>
+
+                <!-- ウィジェットをレンダリングするためのコンテナ -->
+                <div id="mixed-widgets-container" class="ql-editor"
+                    style="border: 1px solid var(--border); border-radius: 8px; padding: 16px; background: white;">
+                    {{ answer.problem.content|safe }}
+                </div>
+                <input type="hidden" name="mixed_answers_json" id="mixed-answers-json" value='{{ answer.content }}'>
+                {% else %}
+                <!-- 記述問題 -->
+                <div id="answer-editor"></div>
+                <input type="hidden" id="answer-content" name="content">
+                {% endif %}
+            </div>
+
+            <div style="display: flex; justify-content: flex-end; gap: 1rem; margin-top: 1.5rem;">
+                <a href="{{ url_for('view_problem', problem_id=answer.problem.id) }}"
+                    class="btn btn-secondary">キャンセル</a>
+                <button type="submit" class="btn btn-success">💾 変更を保存</button>
+            </div>
+        </div>
+    </form>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<style>
+    /* 複合問題用スタイル */
+    .widget-replacement {
+        margin: 16px 0;
+        padding: 16px;
+        background: #fff;
+        border: 2px solid var(--primary);
+        border-radius: 12px;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+        transition: transform 0.2s, box-shadow 0.2s;
+    }
+
+    .widget-replacement:focus-within {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(233, 30, 140, 0.15);
+    }
+
+    .widget-label {
+        font-weight: 700;
+        margin-bottom: 12px;
+        color: var(--primary);
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+
+    .mixed-textarea {
+        width: 100%;
+        min-height: 120px;
+        padding: 12px;
+        border: 1px solid #ddd;
+        border-radius: 8px;
+        font-size: 1rem;
+        line-height: 1.6;
+        resize: vertical;
+        transition: border-color 0.2s;
+        font-family: inherit;
+    }
+
+    .mixed-textarea:focus {
+        outline: none;
+        border-color: var(--primary);
+        background: #fffafa;
+    }
+
+    .mixed-option-label {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 12px 16px;
+        background: var(--bg-primary);
+        border: 2px solid transparent;
+        border-radius: 8px;
+        cursor: pointer;
+        transition: all 0.2s;
+        margin-bottom: 8px;
+    }
+
+    .mixed-option-label:hover {
+        background: var(--bg-hover);
+    }
+
+    .mixed-option-label:has(input:checked) {
+        border-color: var(--primary);
+        background: rgba(233, 30, 140, 0.05);
+    }
+
+    .mixed-radio,
+    .mixed-checkbox {
+        width: 20px;
+        height: 20px;
+        accent-color: var(--primary);
+    }
+</style>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        {% if answer.problem.problem_type == 'mixed' %}
+        const container = document.getElementById('mixed-widgets-container');
+        const widgets = container.querySelectorAll('.question-widget');
+        const hiddenInput = document.getElementById('mixed-answers-json');
+        let savedAnswers = {};
+
+        try {
+            savedAnswers = JSON.parse(hiddenInput.value || '{}');
+        } catch (e) {
+            console.error('JSON parse error:', e);
+        }
+
+        // 更新用関数
+        const updateHiddenInput = () => {
+            hiddenInput.value = JSON.stringify(savedAnswers);
+        };
+
+        widgets.forEach((widget, index) => {
+            const type = widget.dataset.widgetType;
+            const widgetId = `widget_${index}`;
+            const savedVal = savedAnswers[index] || {};
+
+            // 表示用HTMLを作成
+            const replacement = document.createElement('div');
+            replacement.className = 'widget-replacement';
+            // replacement.style.cssText removed to use CSS class
+
+            if (type === 'choice') {
+                const choices = JSON.parse(widget.dataset.choices || '[]');
+                let html = `<div class="widget-label">🔴 回答を選択してください</div>`;
+                choices.forEach((choice, choiceIdx) => {
+                    const checked = (savedVal.type === 'choice' && savedVal.value === choiceIdx) ? 'checked' : '';
+                    html += `
+                        <label class="mixed-option-label">
+                            <input type="radio" name="${widgetId}" value="${choiceIdx}" class="mixed-radio" data-widget-idx="${index}" ${checked}>
+                            <span>${choice}</span>
+                        </label>`;
+                });
+                replacement.innerHTML = html;
+
+                // イベントリスナー
+                replacement.querySelectorAll('input[type="radio"]').forEach(radio => {
+                    radio.addEventListener('change', function () {
+                        savedAnswers[index] = {
+                            type: 'choice',
+                            value: parseInt(this.value),
+                            choice_text: choices[this.value]
+                        };
+                        updateHiddenInput();
+                    });
+                });
+
+            } else if (type === 'checkbox') {
+                const choices = JSON.parse(widget.dataset.choices || '[]');
+                let html = `<div class="widget-label">☑️ 当てはまるものを全て選択してください</div>`;
+                choices.forEach((choice, choiceIdx) => {
+                    // savedVal.value is array of indices for checkbox
+                    let isChecked = false;
+                    if (savedVal.type === 'checkbox' && Array.isArray(savedVal.value)) {
+                        if (savedVal.value.includes(choiceIdx)) isChecked = true;
+                    }
+                    const checkedStr = isChecked ? 'checked' : '';
+
+                    html += `
+                        <label class="mixed-option-label">
+                            <input type="checkbox" name="${widgetId}[]" value="${choiceIdx}" class="mixed-checkbox" data-widget-idx="${index}" ${checkedStr}>
+                            <span>${choice}</span>
+                        </label>`;
+                });
+                replacement.innerHTML = html;
+
+                // イベントリスナー
+                replacement.querySelectorAll('input[type="checkbox"]').forEach(check => {
+                    check.addEventListener('change', function () {
+                        // 選択されているすべてのチェックボックスを取得
+                        const selected = Array.from(replacement.querySelectorAll('input[type="checkbox"]:checked'));
+                        const values = selected.map(c => parseInt(c.value));
+                        const textValues = selected.map(c => choices[parseInt(c.value)]);
+
+                        savedAnswers[index] = {
+                            type: 'checkbox',
+                            value: values,
+                            choice_text: textValues
+                        };
+                        updateHiddenInput();
+                    });
+                });
+
+            } else if (type === 'text') {
+                const textVal = (savedVal.type === 'text') ? savedVal.value : '';
+                replacement.innerHTML = `
+                        <div class="widget-label">✏️ 回答を入力してください</div>
+                        <textarea class="mixed-textarea" data-widget-idx="${index}">${textVal}</textarea>
+                    `;
+
+                const textarea = replacement.querySelector('textarea');
+                // 初期高さ調整
+                textarea.style.height = 'auto';
+                textarea.style.height = (textarea.scrollHeight + 2) + 'px';
+
+                textarea.addEventListener('input', function () {
+                    this.style.height = 'auto';
+                    this.style.height = (this.scrollHeight + 2) + 'px';
+
+                    savedAnswers[index] = {
+                        type: 'text',
+                        value: this.value
+                    };
+                    updateHiddenInput();
+                });
+            }
+
+            // 置換
+            widget.replaceWith(replacement);
+        });
+
+        {% else %}
+        const quill = initEditor('answer-editor');
+        quill.root.innerHTML = `{{ answer.content|safe }}`;
+        setupEditorForm('answer-form', quill, 'answer-content');
+        {% endif %}
+    });
+</script>
+{% endblock %}

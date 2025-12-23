@@ -1,0 +1,813 @@
+{% extends "base.html" %}
+
+{% block title %}{{ problem.title }} - 石川七夢講師専用学習アプリ{% endblock %}
+
+{% block content %}
+<div class="fade-in">
+    <div class="page-header">
+        <h1 class="page-title">{{ problem.title }}</h1>
+        <a href="{{ url_for('dashboard') }}" class="btn btn-secondary">← 戻る</a>
+    </div>
+
+    <!-- 問題内容 -->
+    <div class="card" style="margin-bottom: 1.5rem;">
+        <h2 class="card-title">📋 問題</h2>
+        <div class="editor-container" style="min-height: auto;">
+            {% if current_user.is_teacher() or problem.problem_type != 'mixed' %}
+            <div id="problem-content" class="ql-container ql-snow" style="border: none;">
+                <div class="ql-editor">{{ problem.content|safe }}</div>
+            </div>
+            {% else %}
+            <div class="alert alert-info" style="margin:0;">
+                <span class="icon">⬇️</span> 下の回答フォームに回答を入力してください。
+            </div>
+            {% endif %}
+        </div>
+        <div
+            style="margin-top: 1rem; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.5rem;">
+            <span style="color: var(--text-muted); font-size: 0.875rem;">
+                作成日: {{ problem.created_at|jst('%Y年%m月%d日 %H:%M') }}
+            </span>
+            {% if problem.deadline %}
+            {% if problem.is_overdue() %}
+            <span
+                style="background: rgba(244, 67, 54, 0.2); color: #f44336; padding: 0.25rem 0.75rem; border-radius: 999px; font-size: 0.875rem;">
+                ⚠️ 期限切れ（{{ problem.deadline|jst('%Y年%m月%d日 %H:%M') }}）
+            </span>
+            {% else %}
+            <span
+                style="background: rgba(76, 175, 80, 0.2); color: #4caf50; padding: 0.25rem 0.75rem; border-radius: 999px; font-size: 0.875rem;">
+                📅 期限: {{ problem.deadline|jst('%Y年%m月%d日 %H:%M') }}
+            </span>
+            {% endif %}
+            {% endif %}
+        </div>
+    </div>
+
+    {% if current_user.is_teacher() %}
+    <!-- 先生: 回答一覧 -->
+    <div class="card">
+        <h2 class="card-title">📬 生徒の回答 ({{ answers|length }}件)</h2>
+
+        {% if answers %}
+        <div class="problem-list">
+            {% for answer in answers %}
+            <a href="{{ url_for('view_answer', answer_id=answer.id) }}" class="problem-card">
+                <div class="problem-header">
+                    <h3 class="problem-title">{{ answer.student.display_name }}</h3>
+                    <div style="display: flex; align-items: center; gap: 0.5rem;">
+                        {% if answer.feedback %}
+                        <span class="status-badge status-reviewed">✓ フィードバック済み</span>
+                        {% else %}
+                        <span class="status-badge status-pending">⏳ 要確認</span>
+                        {% endif %}
+                        <span class="problem-date">{{ answer.submitted_at|jst }}</span>
+                    </div>
+                </div>
+                <div class="problem-preview">{{ answer.content|format_mixed_answer(problem.problem_type) }}</div>
+            </a>
+            {% endfor %}
+        </div>
+        {% else %}
+        <div class="empty-state">
+            <div class="empty-icon">📭</div>
+            <p>まだ回答がありません。</p>
+        </div>
+        {% endif %}
+
+        <!-- 未回答の生徒リスト -->
+        {% if unanswered_students %}
+        <div
+            style="margin-top: 1.5rem; padding: 1rem; background: rgba(255, 152, 0, 0.1); border-radius: var(--radius); border: 1px solid rgba(255, 152, 0, 0.3);">
+            <h3 style="font-size: 1rem; color: #ff9800; margin-bottom: 0.75rem;">⏳ 未回答の生徒 ({{ unanswered_students|length
+                }}名)</h3>
+            <div style="display: flex; flex-wrap: wrap; gap: 0.5rem;">
+                {% for student in unanswered_students %}
+                <span
+                    style="background: white; padding: 6px 12px; border-radius: 20px; font-size: 0.85rem; border: 1px solid rgba(255, 152, 0, 0.3);">
+                    {{ student.display_name }}
+                </span>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- 編集・削除ボタン -->
+    <div style="margin-top: 1.5rem; display: flex; gap: 1rem; justify-content: flex-end;">
+        <a href="{{ url_for('edit_problem', problem_id=problem.id) }}" class="btn btn-secondary">
+            ✏️ 問題を編集
+        </a>
+        <form method="POST" action="{{ url_for('delete_problem', problem_id=problem.id) }}" style="display: inline;">
+            <button type="submit" class="btn btn-danger" onclick="return confirmDelete('この問題と関連するすべての回答を削除しますか？')">
+                🗑️ 問題を削除
+            </button>
+        </form>
+    </div>
+
+    {% else %}
+    <!-- 生徒: 回答フォーム -->
+    {% if existing_answer %}
+    <!-- 既存の回答 -->
+    <div class="card" style="margin-bottom: 1.5rem;">
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+            <h2 class="card-title" style="margin-bottom: 0;">📝 あなたの回答</h2>
+            {% if not existing_answer.feedback %}
+            <a href="{{ url_for('edit_answer', answer_id=existing_answer.id) }}" class="btn btn-secondary btn-sm">
+                ✏️ 編集
+            </a>
+            {% endif %}
+        </div>
+        <div class="editor-container" style="min-height: auto; margin-top: 1rem;">
+            <div class="ql-container ql-snow" style="border: none;">
+                <div class="ql-editor">
+                    {% if problem.problem_type == 'mixed' %}
+                    <!-- 複合問題（回答済み表示）: ウィジェットを埋め込んで表示 -->
+                    <div id="mixed-answer-view-container">
+                        {{ problem.content|safe }}
+                    </div>
+                    {% else %}
+                    {{ existing_answer.content|safe }}
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+        <div style="margin-top: 1rem; color: var(--text-muted); font-size: 0.875rem;">
+            提出日: {{ existing_answer.submitted_at|jst('%Y年%m月%d日 %H:%M') }}
+        </div>
+    </div>
+
+    {% if existing_answer.feedback %}
+    <!-- フィードバック表示 -->
+    <div class="feedback-box" data-feedback-id="{{ existing_answer.feedback.id }}">
+        <div class="feedback-header">
+            <span>💬 先生からのフィードバック</span>
+            {% if existing_answer.feedback.score is not none %}
+            <span class="score-display">{{ existing_answer.feedback.score }}点</span>
+            {% endif %}
+        </div>
+        <div class="feedback-content">{{ existing_answer.feedback.content|safe }}</div>
+        <div style="margin-top: 0.75rem; color: var(--text-muted); font-size: 0.75rem;">
+            {{ existing_answer.feedback.created_at|jst('%Y年%m月%d日 %H:%M') }}
+        </div>
+    </div>
+    <script>
+        // フィードバックを確認したらlocalStorageに記録（アニメーション解除用）
+        localStorage.setItem('feedback-seen-{{ existing_answer.feedback.id }}', 'true');
+    </script>
+    {% else %}
+    <div class="alert alert-info">
+        ⏳ 先生のフィードバックをお待ちください。
+    </div>
+    {% endif %}
+
+    {% else %}
+    <!-- 回答入力フォーム -->
+    {% if problem.is_overdue() %}
+    <div class="alert alert-error">
+        ⚠️ この問題は提出期限が過ぎているため、回答できません。
+    </div>
+    {% else %}
+    <div class="card">
+        <h2 class="card-title">✏️ 回答を入力</h2>
+        <form id="answer-form" method="POST" action="{{ url_for('submit_answer', problem_id=problem.id) }}">
+
+            {% if problem.problem_type == 'choice' %}
+            <!-- 従来の選択問題（互換性のため） -->
+            <div class="choices-answer">
+                {% set choices = problem.get_choices() %}
+                {% for choice in choices %}
+                <label class="choice-option">
+                    <input type="radio" name="selected_choice" value="{{ loop.index0 }}" required>
+                    <span class="choice-text">{{ choice }}</span>
+                </label>
+                {% endfor %}
+            </div>
+            <input type="hidden" name="content" value="">
+
+            {% elif problem.problem_type == 'mixed' %}
+            <!-- 複合問題（ウィジェットはJSで置換） -->
+            <div id="mixed-problem-description" style="margin-bottom: 1rem; color: var(--text-secondary);">
+                ※ 問題文の中にある入力欄に回答してください。
+            </div>
+
+            <!-- ウィジェットをレンダリングするためのコンテナ -->
+            <div id="mixed-widgets-container" class="ql-editor"
+                style="border: 1px solid var(--border); border-radius: 8px; padding: 16px; background: white;">
+                {{ problem.content|safe }}
+            </div>
+            <input type="hidden" name="mixed_answers_json" id="mixed-answers-json">
+
+            {% else %}
+            <!-- 記述問題 -->
+            <div class="editor-container">
+                <div id="answer-editor"></div>
+            </div>
+            <input type="hidden" id="answer-content" name="content">
+            {% endif %}
+
+            <div style="display: flex; justify-content: flex-end; margin-top: 1.5rem;">
+                <button type="submit" class="btn btn-success">📤 回答を提出</button>
+            </div>
+        </form>
+    </div>
+    {% endif %}
+    {% endif %}
+    {% endif %}
+</div>
+{% endblock %}
+
+{% block scripts %}
+<style>
+    .choices-answer {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+    }
+
+    .choice-option {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 16px;
+        background: var(--bg-hover);
+        border: 2px solid var(--border);
+        border-radius: var(--radius);
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+
+    .choice-option:hover {
+        border-color: var(--primary);
+        background: rgba(233, 30, 140, 0.05);
+    }
+
+    .choice-option input[type="radio"] {
+        width: 24px;
+        height: 24px;
+        accent-color: var(--primary);
+    }
+
+    .choice-option input[type="radio"]:checked+.choice-text {
+        color: var(--primary);
+        font-weight: 600;
+    }
+
+    .choice-text {
+        font-size: 1rem;
+    }
+
+    /* 複合問題用ウィジェットスタイル */
+    .widget-replacement {
+        margin: 16px 0;
+        padding: 16px;
+        background: #fff;
+        border: 2px solid var(--primary);
+        border-radius: 12px;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
+        transition: transform 0.2s, box-shadow 0.2s;
+        cursor: pointer;
+        /* クリック可能であることを示す */
+        position: relative;
+        /* 確実に前面に出す */
+        z-index: 10;
+    }
+
+    .widget-replacement:hover {
+        background: #fffafa;
+        box-shadow: 0 6px 12px rgba(233, 30, 140, 0.15);
+        transform: translateY(-2px);
+    }
+
+    .widget-replacement .widget-label {
+        font-weight: 700;
+        margin-bottom: 12px;
+        color: var(--primary);
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 1.1em;
+    }
+
+    /* クリックを促すオーバーレイアイコン */
+    .widget-replacement::after {
+        content: "👆 タップして入力";
+        position: absolute;
+        top: -10px;
+        right: 10px;
+        background: var(--primary);
+        color: white;
+        font-size: 0.75rem;
+        padding: 4px 8px;
+        border-radius: 12px;
+        opacity: 0;
+        transition: opacity 0.2s;
+        pointer-events: none;
+    }
+
+    .widget-replacement:hover::after {
+        opacity: 1;
+    }
+
+    /* フォーカスモード（拡大入力）モーダル */
+    .focus-modal {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0, 0, 0, 0.8);
+        z-index: 9999;
+        display: none;
+        flex-direction: column;
+        justify-content: flex-end;
+        /* 下から表示 */
+    }
+
+    .focus-modal.active {
+        display: flex;
+        animation: fadeIn 0.2s ease-out;
+    }
+
+    .focus-modal-content {
+        background: #f8f9fa;
+        border-radius: 20px 20px 0 0;
+        padding: 24px;
+        height: 85vh;
+        /* 画面下部から85% */
+        display: flex;
+        flex-direction: column;
+        overflow-y: auto;
+        box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.2);
+        animation: slideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    .focus-modal-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 16px;
+        border-bottom: 2px solid #eee;
+        padding-bottom: 12px;
+    }
+
+    .focus-problem-preview {
+        background: white;
+        padding: 16px;
+        border-radius: 12px;
+        margin-bottom: 24px;
+        border: 1px solid #eee;
+        font-size: 0.95rem;
+        color: var(--text-primary);
+        line-height: 1.6;
+        max-height: 150px;
+        overflow-y: auto;
+    }
+
+    .focus-input-area {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+    }
+
+    .focus-textarea {
+        width: 100%;
+        flex: 1;
+        padding: 16px;
+        font-size: 1.2rem;
+        /* 文字を大きく */
+        border: 2px solid var(--primary);
+        border-radius: 12px;
+        resize: none;
+        outline: none;
+        line-height: 1.6;
+    }
+
+    .focus-options {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+    }
+
+    .focus-option-label {
+        padding: 16px 20px;
+        background: white;
+        border: 2px solid #ddd;
+        border-radius: 12px;
+        font-size: 1.1rem;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+
+    .focus-option-label:active {
+        transform: scale(0.98);
+    }
+
+    .focus-option-label.selected {
+        border-color: var(--primary);
+        background: #fff0f5;
+        color: var(--primary);
+        font-weight: bold;
+    }
+
+    /* アニメーション定義 */
+    @keyframes slideUp {
+        from {
+            transform: translateY(100%);
+        }
+
+        to {
+            transform: translateY(0);
+        }
+    }
+
+    @keyframes fadeIn {
+        from {
+            opacity: 0;
+        }
+
+        to {
+            opacity: 1;
+        }
+    }
+</style>
+
+<!-- フォーカスモード用モーダル -->
+<div id="focus-modal" class="focus-modal">
+    <div class="focus-modal-content">
+        <div class="focus-modal-header">
+            <h3 style="margin:0; font-size:1.2rem;">✏️ 入力中...</h3>
+            <button type="button" class="btn btn-primary btn-sm" onclick="closeFocusModal()">完了</button>
+        </div>
+        <div class="focus-problem-preview" id="focus-problem-preview">
+            <!-- 問題文プレビューがここに表示されます -->
+        </div>
+        <div id="focus-input-container" class="focus-input-area">
+            <!-- 入力フォームが動的に挿入されます -->
+        </div>
+    </div>
+</div>
+
+<script>
+    let currentWidgetIndex = -1;
+    let answers = {};
+    const problemContentHtml = `{{ problem.content|safe }}`;
+    const PROBLEM_ID = {{ problem.id }};
+    const DRAFT_KEY = `nanami_draft_${PROBLEM_ID}`;
+
+    // --- 下書き保存・復元関数 ---
+    function saveDraft(data) {
+        try {
+            const draftData = {
+                timestamp: Date.now(),
+                data: data
+            };
+            localStorage.setItem(DRAFT_KEY, JSON.stringify(draftData));
+            showDraftSavedIndicator();
+        } catch (e) {
+            console.warn('下書き保存に失敗:', e);
+        }
+    }
+
+    function loadDraft() {
+        try {
+            const saved = localStorage.getItem(DRAFT_KEY);
+            if (saved) {
+                const parsed = JSON.parse(saved);
+                // 24時間以上前のドラフトは無視
+                if (Date.now() - parsed.timestamp < 24 * 60 * 60 * 1000) {
+                    return parsed.data;
+                }
+            }
+        } catch (e) {
+            console.warn('下書き読み込みに失敗:', e);
+        }
+        return null;
+    }
+
+    function clearDraft() {
+        localStorage.removeItem(DRAFT_KEY);
+    }
+
+    function showDraftSavedIndicator() {
+        let indicator = document.getElementById('draft-saved-indicator');
+        if (!indicator) {
+            indicator = document.createElement('div');
+            indicator.id = 'draft-saved-indicator';
+            indicator.innerHTML = '💾 下書き保存済み';
+            indicator.style.cssText = 'position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:#4caf50;color:white;padding:8px 16px;border-radius:20px;font-size:0.85rem;opacity:0;transition:opacity 0.3s;z-index:9999;';
+            document.body.appendChild(indicator);
+        }
+        indicator.style.opacity = '1';
+        setTimeout(() => { indicator.style.opacity = '0'; }, 2000);
+    }
+
+    document.addEventListener('DOMContentLoaded', function () {
+        // --- 生徒が問題を表示したら先生に通知 ---
+        {% if not current_user.is_teacher() and not existing_answer %}
+        // 未回答の場合のみ通知（一度だけ）
+        const viewedKey = `problem-viewed-${PROBLEM_ID}`;
+        if (!sessionStorage.getItem(viewedKey)) {
+            sessionStorage.setItem(viewedKey, 'true');
+            fetch(`/api/problem/${PROBLEM_ID}/viewed`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' }
+            }).catch(e => console.log('view通知エラー:', e));
+        }
+        {% endif %}
+
+        // --- 記述式・従来の選択式 ---
+        {% if not current_user.is_teacher() and not existing_answer and not problem.is_overdue() and problem.problem_type != 'choice' and problem.problem_type != 'mixed' %}
+        const quill = initEditor('answer-editor');
+        setupEditorForm('answer-form', quill, 'answer-content');
+        {% endif %}
+
+        // --- 複合問題 (Mixed) ---
+        {% if problem.problem_type == 'mixed' and not existing_answer and not current_user.is_teacher() %}
+        const container = document.getElementById('mixed-widgets-container');
+        const widgets = container.querySelectorAll('.question-widget');
+        const hiddenInput = document.getElementById('mixed-answers-json');
+
+        // Form submission handler
+        document.getElementById('answer-form').addEventListener('submit', function (e) {
+            hiddenInput.value = JSON.stringify(answers);
+            clearDraft(); // 提出時に下書き削除
+        });
+
+        // 下書き復元 (mixed)
+        const savedDraft = loadDraft();
+        if (savedDraft && savedDraft.type === 'mixed') {
+            answers = savedDraft.answers || {};
+            console.log('下書きを復元しました:', answers);
+        }
+
+        widgets.forEach((widget, index) => {
+            const type = widget.dataset.widgetType;
+            const widgetId = `widget_${index}`;
+
+            // 説明文の取得
+            const descDiv = widget.querySelector('.widget-description');
+            const descriptionHtml = descDiv ? descDiv.outerHTML : '';
+
+            // Widget置換用HTML
+            const replacement = document.createElement('div');
+            replacement.className = 'widget-replacement';
+            replacement.dataset.idx = index;
+            // 説明文をdata属性に保存
+            replacement.dataset.description = descriptionHtml;
+            // クリック時にフォーカスモード起動
+            replacement.addEventListener('click', function (e) {
+                // ラジオボタンやチェックボックス自体のクリックならイベント伝播を許容（ただしフォーカスモードも開く）
+                openFocusModal(index, type, widget.dataset.choices, descriptionHtml);
+            });
+
+            if (type === 'choice') {
+                const choices = JSON.parse(widget.dataset.choices || '[]');
+                let html = `${descriptionHtml}<div class="widget-label">🔴 選択してください</div>`;
+                choices.forEach((choice, choiceIdx) => {
+                    html += `
+                        <div class="mixed-option-label" style="pointer-events:none;">
+                            <span class="mixed-radio-icon">⚪</span>
+                            <span>${choice}</span>
+                        </div>`;
+                });
+                replacement.innerHTML = html;
+
+            } else if (type === 'checkbox') {
+                const choices = JSON.parse(widget.dataset.choices || '[]');
+                let html = `${descriptionHtml}<div class="widget-label">☑️ 全て選択してください</div>`;
+                choices.forEach((choice, choiceIdx) => {
+                    html += `
+                        <div class="mixed-option-label" style="pointer-events:none;">
+                            <span class="mixed-checkbox-icon">⬜</span>
+                            <span>${choice}</span>
+                        </div>`;
+                });
+                replacement.innerHTML = html;
+
+            } else if (type === 'text') {
+                replacement.innerHTML = `
+                        ${descriptionHtml}
+                        <div class="widget-label">✏️ タップして入力</div>
+                        <div class="mixed-textarea" style="background:#f5f5f5; color:#666; pointer-events:none;">(タップして入力画面を開く)</div>
+                    `;
+            }
+
+            widget.replaceWith(replacement);
+
+            // 下書きがあればUIを更新
+            if (answers[index]) {
+                setTimeout(() => updateWidgetVisual(index), 50);
+            }
+        });
+        {% endif %}
+
+        // --- 複合問題 (Mixed: 回答済み閲覧モード) ---
+        {% if problem.problem_type == 'mixed' and existing_answer %}
+        const viewContainer = document.getElementById('mixed-answer-view-container');
+        const viewWidgets = viewContainer.querySelectorAll('.question-widget');
+        let savedAnswers = {};
+        try {
+            savedAnswers = JSON.parse({{ existing_answer.content | tojson }});
+        } catch (e) {
+        console.error('回答データのパースに失敗:', e);
+    }
+
+    viewWidgets.forEach((widget, index) => {
+        const type = widget.dataset.widgetType;
+        const answerData = savedAnswers[index];
+        const descDiv = widget.querySelector('.widget-description');
+        const descriptionHtml = descDiv ? descDiv.outerHTML : '';
+
+        const replacement = document.createElement('div');
+        replacement.className = 'widget-replacement';
+        replacement.style.border = '2px solid #ccc';
+        replacement.style.background = '#f9f9f9';
+        replacement.style.cursor = 'default';
+
+        if (!answerData) {
+            replacement.innerHTML = '<div style="color:red">回答データなし</div>';
+            widget.replaceWith(replacement);
+            return;
+        }
+
+        if (type === 'choice') {
+            replacement.innerHTML = `
+                        ${descriptionHtml}
+                        <div class="mixed-option-label selected" style="pointer-events:none;">
+                            <span style="margin-right:8px;">✅</span> ${answerData.choice_text}
+                        </div>`;
+        } else if (type === 'checkbox') {
+            let html = `${descriptionHtml}<div style="display:flex; flex-direction:column; gap:4px;">`;
+            answerData.choice_text.forEach(txt => {
+                html += `
+                         <div class="mixed-option-label selected" style="pointer-events:none;">
+                            <span style="margin-right:8px;">✅</span> ${txt}
+                        </div>`;
+            });
+            html += '</div>';
+            replacement.innerHTML = html;
+        } else if (type === 'text') {
+            const val = answerData.value ? answerData.value.replace(/\n/g, '<br>') : '(空欄)';
+            replacement.innerHTML = `
+                        ${descriptionHtml}
+                        <div style="background:white; padding:12px; border-radius:4px; border:1px solid #ddd;">
+                            ${val}
+                        </div>`;
+        }
+        widget.replaceWith(replacement);
+    });
+    {% endif %}
+    });
+
+    // --- フォーカスモード関数 ---
+    function openFocusModal(index, type, choicesJson, descriptionHtml) {
+        currentWidgetIndex = index;
+        const modal = document.getElementById('focus-modal');
+        const preview = document.getElementById('focus-problem-preview');
+        const container = document.getElementById('focus-input-container');
+
+        // 解答欄の説明（問題文）をプレビューに表示
+        if (descriptionHtml && descriptionHtml.trim()) {
+            preview.innerHTML = descriptionHtml;
+            preview.style.display = 'block';
+        } else {
+            // 説明がなければプレビュー非表示
+            preview.style.display = 'none';
+        }
+
+        // 入力フォーム生成
+        container.innerHTML = '';
+        if (type === 'choice') {
+            const choices = JSON.parse(choicesJson || '[]');
+            let html = '<div class="focus-options">';
+            choices.forEach((choice, i) => {
+                const isSelected = answers[index] && answers[index].value === i;
+                html += `
+                    <label class="focus-option-label ${isSelected ? 'selected' : ''}">
+                        <input type="radio" name="focus-radio" value="${i}" ${isSelected ? 'checked' : ''} onchange="updateChoice(${index}, ${i}, '${choice.replace(/'/g, "\\'")}', this)">
+                        ${choice}
+                    </label>`;
+            });
+            html += '</div>';
+            container.innerHTML = html;
+
+        } else if (type === 'checkbox') {
+            const choices = JSON.parse(choicesJson || '[]');
+            let html = '<div class="focus-options">';
+            const currentVals = (answers[index] && answers[index].value) || [];
+            choices.forEach((choice, i) => {
+                const isSelected = currentVals.includes(i);
+                html += `
+                    <label class="focus-option-label ${isSelected ? 'selected' : ''}">
+                        <input type="checkbox" name="focus-check" value="${i}" ${isSelected ? 'checked' : ''} onchange="updateCheckbox(${index}, '${JSON.stringify(choices).replace(/'/g, "\\'")}', this)">
+                        ${choice}
+                    </label>`;
+            });
+            html += '</div>';
+            container.innerHTML = html;
+
+        } else if (type === 'text') {
+            const currentVal = (answers[index] && answers[index].value) || '';
+            container.innerHTML = `
+                <textarea class="focus-textarea" placeholder="ここに回答を入力してください..." oninput="updateText(${index}, this)">${currentVal}</textarea>
+            `;
+            // オートフォーカス
+            setTimeout(() => container.querySelector('textarea').focus(), 100);
+        }
+
+        modal.classList.add('active');
+        document.body.style.overflow = 'hidden'; // 背景スクロール固定
+    }
+
+    function closeFocusModal() {
+        document.getElementById('focus-modal').classList.remove('active');
+        document.body.style.overflow = '';
+        updateWidgetVisual(currentWidgetIndex); // メイン画面の表示を更新
+    }
+
+    // データ更新関数
+    function updateChoice(index, val, text, input) {
+        answers[index] = { type: 'choice', value: val, choice_text: text };
+        saveDraft({ type: 'mixed', answers: answers }); // 下書き保存
+        // UI更新
+        const labels = input.closest('.focus-options').querySelectorAll('.focus-option-label');
+        labels.forEach(l => l.classList.remove('selected'));
+        input.closest('label').classList.add('selected');
+        // 自動で閉じる（UX向上）
+        setTimeout(closeFocusModal, 300);
+    }
+
+    function updateCheckbox(index, choicesJsonStr, input) {
+        const choices = JSON.parse(choicesJsonStr);
+        const container = input.closest('.focus-options');
+        const checkedInputs = Array.from(container.querySelectorAll('input:checked'));
+        const values = checkedInputs.map(el => parseInt(el.value));
+        const texts = values.map(v => choices[v]);
+
+        answers[index] = { type: 'checkbox', value: values, choice_text: texts };
+        saveDraft({ type: 'mixed', answers: answers }); // 下書き保存
+
+        // UI更新
+        input.closest('label').classList.toggle('selected', input.checked);
+    }
+
+    function updateText(index, textarea) {
+        answers[index] = { type: 'text', value: textarea.value };
+        saveDraft({ type: 'mixed', answers: answers }); // 下書き保存
+    }
+
+    // メイン画面のウィジェット表示を更新（Sync）
+    function updateWidgetVisual(index) {
+        const container = document.getElementById('mixed-widgets-container');
+        // replacement要素を探す（data-idxを持っている）
+        const replacement = container.querySelector(`.widget-replacement[data-idx="${index}"]`);
+        if (!replacement) return;
+
+        const data = answers[index];
+        if (!data) return; // データなければそのまま
+
+        if (data.type === 'choice') {
+            const labels = replacement.querySelectorAll('.mixed-option-label');
+            labels.forEach((l, i) => {
+                if (i === data.value) {
+                    l.classList.add('selected');
+                    l.querySelector('.mixed-radio-icon').textContent = '🔘';
+                    l.style.fontWeight = 'bold';
+                    l.style.color = 'var(--primary)';
+                } else {
+                    l.classList.remove('selected');
+                    l.querySelector('.mixed-radio-icon').textContent = '⚪';
+                    l.style.fontWeight = 'normal';
+                    l.style.color = '';
+                }
+            });
+        } else if (data.type === 'checkbox') {
+            const labels = replacement.querySelectorAll('.mixed-option-label');
+            labels.forEach((l, i) => {
+                if (data.value.includes(i)) {
+                    l.classList.add('selected');
+                    l.querySelector('.mixed-checkbox-icon').textContent = '☑️';
+                    l.style.fontWeight = 'bold';
+                    l.style.color = 'var(--primary)';
+                } else {
+                    l.classList.remove('selected');
+                    l.querySelector('.mixed-checkbox-icon').textContent = '⬜';
+                    l.style.fontWeight = 'normal';
+                    l.style.color = '';
+                }
+            });
+        } else if (data.type === 'text') {
+            const div = replacement.querySelector('.mixed-textarea');
+            if (div) {
+                div.textContent = data.value || '(入力済み)';
+                div.style.color = data.value ? 'black' : '#666';
+                div.style.background = data.value ? '#fff' : '#f5f5f5';
+            }
+        }
+    }
+</script>
+{% endblock %}

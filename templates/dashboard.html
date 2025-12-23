@@ -1,0 +1,579 @@
+{% extends "base.html" %}
+
+{% block title %}ダッシュボード - 石川七夢講師専用学習アプリ{% endblock %}
+
+{% block content %}
+<div class="fade-in">
+    <style>
+        .status-badge.status-read {
+            background: #f5f5f5 !important;
+            color: #888 !important;
+            border: 1px solid #ddd !important;
+            font-weight: 500;
+            animation: none !important;
+        }
+    </style>
+    <div class="page-header">
+        <h1 class="page-title">
+            {% if current_user.is_teacher() %}
+            👨‍🏫 先生ダッシュボード
+            {% else %}
+            👨‍🎓 {{ current_user.display_name }}さんの学習ページ
+            {% endif %}
+        </h1>
+        {% if current_user.is_teacher() %}
+        <a href="{{ url_for('create_problem') }}" class="btn btn-primary">
+            ✏️ 新しい問題を作成
+        </a>
+        {% endif %}
+    </div>
+
+    <!-- 連絡事項 -->
+    {% if announcements %}
+    <div class="card"
+        style="margin-bottom: 1.5rem; background: linear-gradient(135deg, #fff9c4 0%, #ffecb3 100%); border-color: #ffc107;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem;">
+            <h2 style="font-size: 1.1rem; font-weight: 600; color: #e65100; margin: 0;">📢 連絡事項</h2>
+            {% if current_user.is_teacher() %}
+            <a href="{{ url_for('manage_announcements') }}" class="btn btn-secondary btn-sm">管理</a>
+            {% endif %}
+        </div>
+        {% for announcement in announcements %}
+        <div style="padding: 0.75rem; background: rgba(255,255,255,0.7); border-radius: 8px; margin-bottom: 0.5rem;">
+            <div style="font-weight: 600; color: #4a2040;">{{ announcement.title }}</div>
+            <div style="font-size: 0.875rem; margin-top: 0.25rem;" class="ql-editor" style="padding:0;">{{
+                announcement.content|safe }}</div>
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 0.5rem;">
+                <div style="font-size: 0.75rem; color: #999;">{{ announcement.created_at|jst }}
+                </div>
+                {% if not current_user.is_teacher() %}
+                <div class="reaction-buttons" data-announcement-id="{{ announcement.id }}">
+                    <button
+                        class="reaction-btn {% if announcement.reactions.filter_by(student_id=current_user.id, reaction_type='seen').first() %}active{% endif %}"
+                        data-reaction="seen" onclick="toggleReaction({{ announcement.id }}, 'seen', this)">
+                        👀 <span class="count">{{ announcement.reactions.filter_by(reaction_type='seen').count() or ''
+                            }}</span>
+                    </button>
+                    <button
+                        class="reaction-btn {% if announcement.reactions.filter_by(student_id=current_user.id, reaction_type='like').first() %}active{% endif %}"
+                        data-reaction="like" onclick="toggleReaction({{ announcement.id }}, 'like', this)">
+                        👍 <span class="count">{{ announcement.reactions.filter_by(reaction_type='like').count() or ''
+                            }}</span>
+                    </button>
+                    <button
+                        class="reaction-btn {% if announcement.reactions.filter_by(student_id=current_user.id, reaction_type='thanks').first() %}active{% endif %}"
+                        data-reaction="thanks" onclick="toggleReaction({{ announcement.id }}, 'thanks', this)">
+                        🙏 <span class="count">{{ announcement.reactions.filter_by(reaction_type='thanks').count() or ''
+                            }}</span>
+                    </button>
+                </div>
+                {% else %}
+                <div style="font-size: 0.75rem; color: #666;">
+                    👀 {{ announcement.reactions.filter_by(reaction_type='seen').count() }}
+                    👍 {{ announcement.reactions.filter_by(reaction_type='like').count() }}
+                    🙏 {{ announcement.reactions.filter_by(reaction_type='thanks').count() }}
+                </div>
+                {% endif %}
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    {% if current_user.is_teacher() %}
+    <!-- 先生用ダッシュボード -->
+    <div class="dashboard-grid">
+        <div class="stat-card">
+            <div class="stat-icon">📝</div>
+            <div>
+                <div class="stat-value">{{ stats.problems }}</div>
+                <div class="stat-label">問題数</div>
+            </div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-icon" style="background: var(--secondary);">👥</div>
+            <div>
+                <div class="stat-value">{{ stats.students }}</div>
+                <div class="stat-label">生徒数</div>
+            </div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-icon" style="background: var(--warning);">📬</div>
+            <div>
+                <div class="stat-value">{{ stats.pending_answers }}</div>
+                <div class="stat-label">未確認の回答</div>
+            </div>
+        </div>
+        <!-- 容量表示 -->
+        <div class="stat-card">
+            <div class="stat-icon" style="background: #607d8b;">💾</div>
+            <div style="width: 100%;">
+                <div style="display: flex; justify-content: space-between;">
+                    <div class="stat-label">サーバー容量</div>
+                    <div class="stat-label">{{ stats.disk_used_percent }}% 使用</div>
+                </div>
+                <div
+                    style="width: 100%; height: 8px; background: #eee; border-radius: 4px; margin-top: 5px; overflow: hidden;">
+                    <div
+                        style="width: {{ stats.disk_used_percent }}%; height: 100%; background: {% if stats.disk_used_percent > 90 %}#f44336{% elif stats.disk_used_percent > 70 %}#ff9800{% else %}#4caf50{% endif %};">
+                    </div>
+                </div>
+                <div style="font-size: 0.75rem; color: #999; margin-top: 3px;">空き: {{ stats.disk_free_gb }} GB</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- リアクション詳細モーダル -->
+    <div id="reaction-modal" class="modal-overlay" style="display: none;">
+        <div class="modal-content">
+            <div class="modal-header"
+                style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem;">
+                <h3 style="margin:0;">リアクション詳細</h3>
+                <button type="button" class="btn btn-secondary btn-sm" onclick="closeReactionModal()">×</button>
+            </div>
+            <div id="reaction-details-content">
+                Loading...
+            </div>
+        </div>
+    </div>
+
+    <h2 style="margin-top: 2rem; margin-bottom: 1rem;">📋 最新の問題</h2>
+    {% else %}
+    <!-- 生徒用 学習状況 -->
+    {% if student_stats %}
+    <div class="stats-grid" style="margin-bottom: 1.5rem;">
+        <!-- 完了率 -->
+        <div class="stat-card" style="grid-column: span 2;">
+            <div class="stat-icon" style="background: linear-gradient(135deg, #e91e8c, #ff6b9d);">📊</div>
+            <div style="width: 100%;">
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <div class="stat-label">学習進捗</div>
+                    <div class="stat-value" style="font-size: 1.5rem;">{{ student_stats.completion_rate }}%</div>
+                </div>
+                <div
+                    style="width: 100%; height: 12px; background: #eee; border-radius: 6px; margin-top: 8px; overflow: hidden;">
+                    <div
+                        style="width: {{ student_stats.completion_rate }}%; height: 100%; background: linear-gradient(90deg, #e91e8c, #ff6b9d); transition: width 0.5s;">
+                    </div>
+                </div>
+                <div style="font-size: 0.8rem; color: #666; margin-top: 5px;">
+                    {{ student_stats.answered }} / {{ student_stats.total_assigned }} 問 完了
+                </div>
+            </div>
+        </div>
+
+        <!-- 回答済み -->
+        <div class="stat-card">
+            <div class="stat-icon" style="background: #4caf50;">✅</div>
+            <div>
+                <div class="stat-label">回答済み</div>
+                <div class="stat-value">{{ student_stats.answered }}</div>
+            </div>
+        </div>
+
+        <!-- 未回答 -->
+        <div class="stat-card">
+            <div class="stat-icon" style="background: #ff9800;">⏳</div>
+            <div>
+                <div class="stat-label">未回答</div>
+                <div class="stat-value">{{ student_stats.unanswered }}</div>
+            </div>
+        </div>
+
+        <!-- フィードバック受信 -->
+        <div class="stat-card">
+            <div class="stat-icon" style="background: #2196f3;">💬</div>
+            <div>
+                <div class="stat-label">フィードバック</div>
+                <div class="stat-value">{{ student_stats.feedback_received }}</div>
+            </div>
+        </div>
+
+        <!-- 確認待ち -->
+        <div class="stat-card">
+            <div class="stat-icon" style="background: #9c27b0;">📤</div>
+            <div>
+                <div class="stat-label">確認待ち</div>
+                <div class="stat-value">{{ student_stats.pending_feedback }}</div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- 日本語学習リンク（中国人生徒向け） -->
+    {% if current_user.is_chinese_student %}
+    <div class="card"
+        style="margin-bottom: 1.5rem; background: linear-gradient(135deg, #e3f2fd 0%, #bbdefb 100%); border-color: #2196f3;">
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+            <div>
+                <h2 style="font-size: 1.1rem; font-weight: 600; color: #1565c0; margin: 0 0 0.25rem 0;">🇯🇵 日本語学習</h2>
+                <p style="margin: 0; font-size: 0.875rem; color: #1976d2;">中国の小学生のための日本語練習</p>
+            </div>
+            <a href="{{ url_for('japanese_dashboard') }}" class="btn btn-primary"
+                style="background: linear-gradient(135deg, #1976d2, #1565c0);">
+                学習を始める →
+            </a>
+        </div>
+    </div>
+    {% endif %}
+
+    <h2 style="margin-bottom: 1rem;">📋 取り組む問題</h2>
+    {% endif %}
+
+    {% if problems or japanese_tasks %}
+    <div class="problem-list">
+        {% for problem in problems %}
+        <a href="{{ url_for('view_problem', problem_id=problem.id) }}" class="problem-card"
+            data-problem-id="{{ problem.id }}">
+            <div class="problem-header">
+                <h3 class="problem-title">{{ problem.title }}</h3>
+                <div style="display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;">
+                    <!-- NEWバッジ（24時間以内かつ未回答の場合のみ） -->
+                    {% set hours_ago = (now - problem.created_at).total_seconds() / 3600 %}
+                    {% set answer = problem.answers.filter_by(student_id=current_user.id).first() if not
+                    current_user.is_teacher() else None %}
+                    {% if not current_user.is_teacher() and not answer and hours_ago < 24 %} <span
+                        class="status-badge new-badge">🆕 NEW</span>
+                        {% endif %}
+
+                        <!-- 下書きバッジ（JSで追加） -->
+                        <span class="draft-badge" style="display: none;">📝 下書きあり</span>
+
+                        <!-- バッジ群 -->
+                        {% if problem.deadline %}
+                        {% if problem.is_overdue() %}
+                        <span class="status-badge" style="background: rgba(244, 67, 54, 0.2); color: #f44336;">⚠️
+                            期限切れ</span>
+                        {% else %}
+                        <span class="status-badge" style="background: rgba(76, 175, 80, 0.2); color: #4caf50;">📅 {{
+                            problem.deadline|jst('%m/%d %H:%M') }}</span>
+                        {% endif %}
+                        {% endif %}
+
+                        {% set completed_count = problem.answers.count() if current_user.is_teacher() else 0 %}
+                        {% set student_count = stats.students if current_user.is_teacher() else 0 %}
+
+                        {% if current_user.is_teacher() %}
+                        {% set all_answers = problem.answers.all() %}
+                        {% set pending_feedback_count = all_answers|rejectattr('feedback')|list|length %}
+                        <span class="status-badge" style="background: #e3f2fd; color: #1976d2;">
+                            📬 回答: {{ completed_count }} / {{ student_count }}
+                        </span>
+                        {% if pending_feedback_count > 0 %}
+                        <span class="status-badge pending-feedback-badge">⚠️ 要確認: {{ pending_feedback_count }}件</span>
+                        {% endif %}
+                        {% else %}
+                        {% if answer %}
+                        {% if answer.feedback %}
+                        <span class="status-badge feedback-badge" data-feedback-id="{{ answer.feedback.id }}">💬
+                            フィードバックあり!</span>
+                        {% else %}
+                        <span class="status-badge status-submitted">📤 提出済み</span>
+                        {% endif %}
+                        {% else %}
+                        <span class="status-badge status-pending">⏳ 未回答</span>
+                        {% endif %}
+                        {% endif %}
+
+                        <span class="problem-date">{{ problem.created_at|jst('%Y/%m/%d') }}</span>
+                        {% if problem.problem_type == 'choice' %}
+                        <span class="status-badge">✅ 選択</span>
+                        {% elif problem.problem_type == 'text' %}
+                        <span class="status-badge">📝 記述</span>
+                        {% else %}
+                        <span class="status-badge">✨ 複合</span>
+                        {% endif %}
+                </div>
+            </div>
+            <div class="problem-preview">{{ problem.content|striptags|truncate(100) }}</div>
+        </a>
+        {% endfor %}
+
+        <!-- 日本語課題ループ -->
+        {% for task in japanese_tasks %}
+        <a href="{% if task.type == 'quiz' or task.type == 'quiz_group' %}{{ url_for('student_quiz_assignment', assignment_id=task.assignment_id) }}{% elif task.type == 'flashcard' or task.type == 'flashcard_group' %}{{ url_for('student_flashcard', assignment_id=task.assignment_id) }}{% elif task.type == 'writing' or task.type == 'writing_group' %}{{ url_for('student_writing', assignment_id=task.assignment_id) }}{% else %}#{% endif %}"
+            class="problem-card" style="display: block; text-decoration: none; color: inherit;">
+            <div class="problem-card-inner">
+                <div class="problem-header">
+                    <h3 class="problem-name">{{ task.title }}</h3>
+                </div>
+                <div class="problem-meta">
+                    <!-- NEWバッジ -->
+                    {% set hours_ago = (now - task.created_at).total_seconds() / 3600 %}
+                    {% if not task.completed and hours_ago < 24 %} <span class="status-badge new-badge">🆕 NEW</span>
+                        {% endif %}
+
+                        <!-- 完了/未完了バッジ -->
+                        {% if task.unseen_feedback %}
+                        <span class="status-badge feedback-badge">💬 フィードバックあり!</span>
+                        {% elif task.feedback %}
+                        <span class="status-badge feedback-badge status-read">💬 フィードバック(既読)</span>
+                        {% endif %}
+
+                        {% if task.completed %}
+                        {% if not task.feedback %}
+                        <span class="status-badge status-submitted">✅ 完了</span>
+                        {% endif %}
+                        {% else %}
+                        <span class="status-badge status-pending">⏳ 未完了</span>
+                        {% endif %}
+
+
+
+                        <span class="problem-date">{{ task.created_at|jst('%Y/%m/%d') }}</span>
+
+                        {% if task.type == 'quiz' or task.type == 'quiz_group' %}
+                        <span class="status-badge" style="background: #e1bee7; color: #4a148c;">🎯 クイズ</span>
+                        {% elif task.type == 'flashcard' or task.type == 'flashcard_group' %}
+                        <span class="status-badge" style="background: #c5cae9; color: #1a237e;">📖 カード</span>
+                        {% elif task.type == 'writing' or task.type == 'writing_group' %}
+                        <span class="status-badge" style="background: #b2dfdb; color: #004d40;">✍️ 書き取り</span>
+                        {% endif %}
+                </div>
+            </div>
+            <div class="problem-preview">
+                {% if task.type == 'quiz' or task.type == 'quiz_group' %}
+                熟語の意味、読み方を選択するクイズです。
+                {% elif task.type == 'flashcard' or task.type == 'flashcard_group' %}
+                単語の意味と読みを覚えるフラッシュカードです。
+                {% elif task.type == 'writing' or task.type == 'writing_group' %}
+                正しい書き順と形を練習する書き取り課題です。
+                {% endif %}
+            </div>
+        </a>
+        {% endfor %}
+    </div>
+    <div style="text-align: center; margin-top: 1rem;">
+        {% if current_user.is_teacher() %}
+        <a href="{{ url_for('manage_problems') }}" class="btn btn-secondary">すべて見る</a>
+        {% endif %}
+    </div>
+    {% else %}
+    <div class="empty-state">
+        <div class="empty-icon">📭</div>
+        {% if current_user.is_teacher() %}
+        <p>まだ問題が作成されていません。</p>
+        <a href="{{ url_for('create_problem') }}" class="btn btn-primary" style="margin-top: 1rem;">
+            ✏️ 最初の問題を作成
+        </a>
+        {% else %}
+        <p>取り組む問題がまだありません。</p>
+        <p style="margin-top: 0.5rem; font-size: 0.875rem;">先生が問題を追加するまでお待ちください。</p>
+        {% endif %}
+    </div>
+    {% endif %}
+</div>
+{% endblock %}
+
+{% block scripts %}
+<style>
+    .reaction-buttons {
+        display: flex;
+        gap: 6px;
+    }
+
+    .reaction-btn {
+        padding: 4px 8px;
+        font-size: 0.85rem;
+        background: rgba(255, 255, 255, 0.8);
+        border: 1px solid #ddd;
+        border-radius: 16px;
+        cursor: pointer;
+        transition: all 0.2s;
+        display: flex;
+        align-items: center;
+        gap: 2px;
+    }
+
+    .reaction-btn:hover {
+        background: #fff;
+        transform: scale(1.05);
+    }
+
+    .reaction-btn.active {
+        background: linear-gradient(135deg, #e91e8c, #c4177a);
+        color: white;
+        border-color: #e91e8c;
+    }
+
+    .reaction-btn .count {
+        font-size: 0.75rem;
+        min-width: 12px;
+        text-align: center;
+    }
+
+    /* NEWバッジ */
+    .new-badge {
+        background: linear-gradient(135deg, #ff6b6b, #ff8e53) !important;
+        color: white !important;
+        font-weight: 600;
+        animation: pulse 1.5s infinite;
+    }
+
+    @keyframes pulse {
+
+        0%,
+        100% {
+            transform: scale(1);
+        }
+
+        50% {
+            transform: scale(1.05);
+        }
+    }
+
+    /* 下書きバッジ */
+    .draft-badge {
+        background: linear-gradient(135deg, #ffd93d, #ff9f1c) !important;
+        color: #333 !important;
+        font-weight: 600;
+        padding: 4px 10px;
+        border-radius: 12px;
+        font-size: 0.75rem;
+    }
+
+    /* フィードバックバッジ（未読） */
+    .feedback-badge {
+        background: linear-gradient(135deg, #4caf50, #8bc34a) !important;
+        color: white !important;
+        font-weight: 600;
+        animation: pulse 1.5s infinite;
+        box-shadow: 0 2px 8px rgba(76, 175, 80, 0.4);
+    }
+
+    /* フィードバック確認済み（既読） */
+    .feedback-badge.seen {
+        background: linear-gradient(135deg, #9e9e9e, #bdbdbd) !important;
+        color: white !important;
+        animation: none;
+        box-shadow: none;
+        opacity: 0.8;
+    }
+
+    /* 要確認バッジ（先生用） */
+    .pending-feedback-badge {
+        background: linear-gradient(135deg, #ff9800, #ff5722) !important;
+        color: white !important;
+        font-weight: 600;
+        animation: pulse 1.5s infinite;
+    }
+</style>
+
+<script>
+    async function toggleReaction(announcementId, reactionType, button) {
+        try {
+            const response = await fetch(`/api/announcement/${announcementId}/react`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ reaction: reactionType })
+            });
+
+            if (response.ok) {
+                const data = await response.json();
+                const countEl = button.querySelector('.count');
+                let count = parseInt(countEl.textContent) || 0;
+
+                if (data.action === 'added') {
+                    button.classList.add('active');
+                    countEl.textContent = count + 1;
+                } else {
+                    button.classList.remove('active');
+                    countEl.textContent = count > 1 ? count - 1 : '';
+                }
+            }
+        } catch (e) {
+            console.error('リアクションエラー:', e);
+        }
+    }
+
+    // リアクション詳細表示 (先生用)
+    {% if current_user.is_teacher() %}
+    document.querySelectorAll('.reaction-buttons').forEach(div => {
+        div.style.cursor = 'pointer';
+        div.title = 'クリックして詳細を表示';
+        div.addEventListener('click', async (e) => {
+            // ボタン自体をクリックした場合は発火させない(リアクション送信と競合しないように)
+            if (e.target.closest('.reaction-btn')) return;
+
+            const announcementId = div.dataset.announcementId;
+            openReactionModal(announcementId);
+        });
+    });
+
+    async function openReactionModal(announcementId) {
+        const modal = document.getElementById('reaction-modal');
+        const content = document.getElementById('reaction-details-content');
+        modal.style.display = 'flex';
+        content.innerHTML = '<div style="text-align:center; padding:20px;">読み込み中...</div>';
+
+        try {
+            const res = await fetch(`/api/announcement/${announcementId}/reactions`);
+            if (!res.ok) throw new Error('API Error');
+            const data = await res.json();
+
+            if (data.length === 0) {
+                content.innerHTML = '<p style="text-align:center; color:#666;">まだリアクションはありません。</p>';
+                return;
+            }
+
+            let html = '<div style="display:flex; flex-direction:column; gap:8px;">';
+            data.forEach(r => {
+                let icon = '';
+                if (r.type === 'seen') icon = '👀';
+                else if (r.type === 'like') icon = '👍';
+                else if (r.type === 'thanks') icon = '🙏';
+
+                html += `
+                <div style="display:flex; justify-content:space-between; align-items:center; padding:8px; background:#f9f9f9; border-radius:4px;">
+                    <div style="font-weight:600;">${r.user_name}</div>
+                    <div>${icon} <span style="font-size:0.8rem; color:#999;">${r.created_at}</span></div>
+                </div>`;
+            });
+            html += '</div>';
+            content.innerHTML = html;
+        } catch (e) {
+            content.innerHTML = '<p style="color:red; text-align:center;">読み込みに失敗しました。</p>';
+        }
+    }
+
+    function closeReactionModal() {
+        document.getElementById('reaction-modal').style.display = 'none';
+    }
+    {% endif %}
+
+    // 下書き検出（生徒用）
+    document.addEventListener('DOMContentLoaded', function () {
+        const problemCards = document.querySelectorAll('.problem-card[data-problem-id]');
+        problemCards.forEach(card => {
+            const problemId = card.dataset.problemId;
+            const draftKey = `answer-draft-${problemId}`;
+            const draft = localStorage.getItem(draftKey);
+
+            if (draft) {
+                try {
+                    const draftData = JSON.parse(draft);
+                    // 24時間以内の下書きのみ表示
+                    if (draftData.timestamp && Date.now() - draftData.timestamp < 24 * 60 * 60 * 1000) {
+                        const draftBadge = card.querySelector('.draft-badge');
+                        if (draftBadge) {
+                            draftBadge.style.display = 'inline-block';
+                        }
+                    }
+                } catch (e) {
+                    // パースエラーは無視
+                }
+            }
+
+            // フィードバック既読チェック
+            const feedbackBadge = card.querySelector('.feedback-badge[data-feedback-id]');
+            if (feedbackBadge) {
+                const feedbackId = feedbackBadge.dataset.feedbackId;
+                const seenKey = `feedback-seen-${feedbackId}`;
+                if (localStorage.getItem(seenKey)) {
+                    feedbackBadge.classList.add('seen');
+                }
+            }
+        });
+    });
+</script>
+{% endblock %}

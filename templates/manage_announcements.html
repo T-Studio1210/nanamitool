@@ -1,0 +1,264 @@
+{% extends "base.html" %}
+
+{% block title %}連絡事項管理 - 石川七夢講師専用学習アプリ{% endblock %}
+
+{% block content %}
+<div class="fade-in">
+    <div class="page-header">
+        <h1 class="page-title">📢 連絡事項管理</h1>
+        <a href="{{ url_for('dashboard') }}" class="btn btn-secondary">← 戻る</a>
+    </div>
+
+    <!-- 新規作成フォーム -->
+    <div class="card" style="margin-bottom: 1.5rem;">
+        <h2 class="card-title">✏️ 新しい連絡事項を投稿</h2>
+        <form id="announcement-form" method="POST" action="{{ url_for('create_announcement') }}">
+            <div class="form-group">
+                <label class="form-label" for="title">タイトル</label>
+                <input type="text" id="title" name="title" class="form-input" placeholder="例: 冬期講習について" required>
+            </div>
+            <div class="form-group">
+                <label class="form-label" for="content">内容</label>
+                <div class="editor-container" style="min-height: 150px;">
+                    <div id="announcement-editor"></div>
+                </div>
+                <input type="hidden" id="announcement-content" name="content">
+            </div>
+
+            <!-- 配信先選択 -->
+            <div class="form-group">
+                <label class="form-label">配信先</label>
+
+                <div style="margin-bottom: 0.75rem;">
+                    <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                        <input type="checkbox" id="is_global" name="is_global" style="width: 18px; height: 18px;">
+                        <span style="font-weight: 500;">📣 全員に配信</span>
+                    </label>
+                </div>
+
+                <div id="student-selection"
+                    style="display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 0.5rem;">
+                    {% for student in students %}
+                    <label class="student-checkbox"
+                        style="display: flex; align-items: center; gap: 0.5rem; padding: 0.5rem 0.75rem; background: var(--bg-primary); border: 1px solid var(--border); border-radius: var(--radius-sm); cursor: pointer;">
+                        <input type="checkbox" name="students" value="{{ student.id }}" class="student-check"
+                            style="width: 16px; height: 16px;">
+                        <span style="font-size: 0.875rem;">{{ student.display_name }}</span>
+                    </label>
+                    {% endfor %}
+                </div>
+                {% if not students %}
+                <p style="color: var(--text-muted); font-size: 0.875rem;">生徒がまだ登録されていません。</p>
+                {% endif %}
+            </div>
+
+            <!-- 配信時間設定 -->
+            <div class="form-group">
+                <label class="form-label">配信タイミング</label>
+                <div style="display: flex; gap: 1rem; flex-wrap: wrap;">
+                    <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                        <input type="radio" name="schedule_type" value="immediate" checked
+                            style="width: 18px; height: 18px;">
+                        <span>📤 今すぐ配信</span>
+                    </label>
+                    <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                        <input type="radio" name="schedule_type" value="scheduled" style="width: 18px; height: 18px;">
+                        <span>⏰ 予約配信</span>
+                    </label>
+                </div>
+                <div id="schedule-time-container" style="display: none; margin-top: 0.75rem;">
+                    <input type="datetime-local" id="scheduled_at" name="scheduled_at" class="form-input"
+                        style="max-width: 280px;">
+                </div>
+            </div>
+
+            <button type="submit" class="btn btn-primary">📤 投稿</button>
+        </form>
+    </div>
+
+    <!-- 連絡事項一覧 -->
+    <div class="card">
+        <div style="display:flex; justify-content:space-between; align-items:center;">
+            <h2 class="card-title" style="margin:0;">📋 連絡事項一覧</h2>
+            <button type="button" class="btn btn-danger btn-sm" onclick="confirmBulkDelete()" id="bulk-delete-btn"
+                style="display:none;">選択した連絡を削除</button>
+        </div>
+
+        {% if announcements %}
+        <form id="bulk-delete-form" action="{{ url_for('bulk_delete_announcements') }}" method="POST">
+            <div class="problem-list" style="margin-top: 1rem;">
+                {% for announcement in announcements %}
+                <div class="problem-card" style="cursor: default; position: relative;">
+                    <div style="position:absolute; top:12px; left:12px;">
+                        <input type="checkbox" name="announcement_ids" value="{{ announcement.id }}" class="bulk-check"
+                            style="width:18px; height:18px;" onchange="toggleBulkBtn()">
+                    </div>
+                    <div class="problem-header" style="padding-left: 2rem;">
+                        <h3 class="problem-title">{{ announcement.title }}</h3>
+                        <div style="display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;">
+                            {% if announcement.is_global %}
+                            <span class="status-badge" style="background: rgba(233, 30, 140, 0.2); color: #e91e8c;">📣
+                                全員</span>
+                            {% else %}
+                            <span class="status-badge status-submitted">👥 {{ announcement.recipients|length }}人</span>
+                            {% endif %}
+                            {% if announcement.is_active %}
+                            <span class="status-badge status-reviewed">✓ 表示中</span>
+                            {% else %}
+                            <span class="status-badge status-pending">非表示</span>
+                            {% endif %}
+                            <span class="problem-date">{{ announcement.created_at|jst }}</span>
+                        </div>
+                    </div>
+                    <div style="margin: 0.75rem 0; padding-left: 2rem;">
+                        <div class="ql-editor" style="padding:0;">{{ announcement.content|safe }}</div>
+                    </div>
+                    <!-- リアクション詳細表示 -->
+                    {% set reactions = announcement.reactions.all() %}
+                    {% if reactions %}
+                    <div style="padding-left: 2rem; margin-bottom: 0.75rem;">
+                        <div style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 0.5rem;">📊 リアクション詳細:
+                        </div>
+                        <div style="display: flex; flex-wrap: wrap; gap: 0.5rem;">
+                            {% for r in reactions %}
+                            <span
+                                style="background: var(--bg-hover); padding: 4px 8px; border-radius: 12px; font-size: 0.75rem;">
+                                {% if r.reaction_type == 'seen' %}👀{% elif r.reaction_type == 'like' %}👍{% elif
+                                r.reaction_type == 'thanks' %}🙏{% else %}{{ r.reaction_type }}{% endif %}
+                                {{ r.student.display_name }}
+                            </span>
+                            {% endfor %}
+                        </div>
+                    </div>
+                    {% else %}
+                    <div
+                        style="padding-left: 2rem; margin-bottom: 0.75rem; font-size: 0.8rem; color: var(--text-muted);">
+                        📊 リアクションなし
+                    </div>
+                    {% endif %}
+                    <div style="display: flex; gap: 0.5rem; padding-left: 2rem;">
+                        <form method="POST"
+                            action="{{ url_for('toggle_announcement', announcement_id=announcement.id) }}"
+                            style="display: inline;">
+                            <button type="submit" class="btn btn-secondary btn-sm">
+                                {% if announcement.is_active %}👁️ 非表示{% else %}👁️ 表示{% endif %}
+                            </button>
+                        </form>
+                        <div style="display:inline;">
+                            <button type="button" class="btn btn-danger btn-sm"
+                                onclick="if(confirmDelete('この連絡事項を削除しますか？')) { document.getElementById('single-delete-form-{{ announcement.id }}').submit(); }">
+                                🗑️ 削除
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </form>
+        {% else %}
+        <div class="empty-state">
+            <div class="empty-icon">📭</div>
+            <p>まだ連絡事項がありません。</p>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+{% for announcement in announcements %}
+<form id="single-delete-form-{{ announcement.id }}" method="POST"
+    action="{{ url_for('delete_announcement', announcement_id=announcement.id) }}" style="display: none;"></form>
+{% endfor %}
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        // Quillエディタ初期化
+        const quill = new Quill('#announcement-editor', {
+            theme: 'snow',
+            placeholder: '連絡事項の内容を入力...',
+            modules: {
+                toolbar: [
+                    [{ 'header': [1, 2, 3, false] }],
+                    ['bold', 'italic', 'underline', 'strike'],
+                    [{ 'color': [] }, { 'background': [] }],
+                    [{ 'list': 'ordered' }, { 'list': 'bullet' }],
+                    ['link'],
+                    ['clean']
+                ]
+            }
+        });
+
+        // フォーム送信時にエディタ内容をセット
+        const form = document.getElementById('announcement-form');
+        if (form) {
+            form.addEventListener('submit', function (e) {
+                const content = quill.root.innerHTML;
+                if (quill.getText().trim().length === 0) {
+                    e.preventDefault();
+                    alert('内容を入力してください');
+                    return false;
+                }
+                document.getElementById('announcement-content').value = content;
+
+                // 二重送信防止
+                const submitBtn = form.querySelector('button[type="submit"]');
+                if (submitBtn.disabled) {
+                    e.preventDefault();
+                    return false;
+                }
+                submitBtn.disabled = true;
+                submitBtn.textContent = '送信中...';
+            });
+        }
+
+        const isGlobalCheckbox = document.getElementById('is_global');
+        const studentSelection = document.getElementById('student-selection');
+        const studentChecks = document.querySelectorAll('.student-check');
+
+        isGlobalCheckbox.addEventListener('change', function () {
+            if (this.checked) {
+                studentSelection.style.opacity = '0.5';
+                studentSelection.style.pointerEvents = 'none';
+                studentChecks.forEach(check => check.checked = false);
+            } else {
+                studentSelection.style.opacity = '1';
+                studentSelection.style.pointerEvents = 'auto';
+            }
+        });
+
+        // 予約配信の表示/非表示切り替え
+        const scheduleRadios = document.querySelectorAll('input[name="schedule_type"]');
+        const scheduleTimeContainer = document.getElementById('schedule-time-container');
+
+        scheduleRadios.forEach(radio => {
+            radio.addEventListener('change', function () {
+                if (this.value === 'scheduled') {
+                    scheduleTimeContainer.style.display = 'block';
+                } else {
+                    scheduleTimeContainer.style.display = 'none';
+                }
+            });
+        });
+    });
+
+
+    function toggleBulkBtn() {
+        const checks = document.querySelectorAll('.bulk-check:checked');
+        const btn = document.getElementById('bulk-delete-btn');
+        if (checks.length > 0) {
+            btn.style.display = 'block';
+            btn.textContent = `${checks.length}件を削除`;
+        } else {
+            btn.style.display = 'none';
+        }
+    }
+
+    function confirmBulkDelete() {
+        if (confirm('選択した連絡事項を削除しますか？')) {
+            document.getElementById('bulk-delete-form').submit();
+        }
+    }
+</script>
+{% endblock %}

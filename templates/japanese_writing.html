@@ -1,0 +1,266 @@
+{% extends "base.html" %}
+
+{% block title %}漢字書き取り - 七夢学習アプリ{% endblock %}
+
+{% block head %}
+<style>
+    .kanji-display {
+        font-size: 8rem;
+        text-align: center;
+        color: #e0e0e0;
+        font-family: 'Noto Sans JP', sans-serif;
+        line-height: 1;
+        margin: 20px 0;
+        user-select: none;
+    }
+
+    .canvas-container {
+        position: relative;
+        width: 300px;
+        height: 300px;
+        margin: 0 auto;
+        border: 3px solid var(--primary);
+        border-radius: 16px;
+        background: white;
+        touch-action: none;
+    }
+
+    .canvas-container canvas {
+        position: absolute;
+        top: 0;
+        left: 0;
+        border-radius: 13px;
+    }
+
+    #guide-canvas {
+        z-index: 1;
+        pointer-events: none;
+    }
+
+    #draw-canvas {
+        z-index: 2;
+    }
+
+    .controls {
+        display: flex;
+        gap: 12px;
+        justify-content: center;
+        margin-top: 20px;
+        flex-wrap: wrap;
+    }
+
+    .reading-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 12px 20px;
+        background: linear-gradient(135deg, #e91e8c 0%, #c4177a 100%);
+        color: white;
+        border-radius: 24px;
+        font-size: 1.3rem;
+        cursor: pointer;
+        transition: transform 0.2s;
+    }
+
+    .reading-badge:hover {
+        transform: scale(1.05);
+    }
+
+    .meaning-box {
+        text-align: center;
+        padding: 12px;
+        background: var(--bg-hover);
+        border-radius: 12px;
+        margin: 16px 0;
+    }
+
+    .stroke-hint {
+        text-align: center;
+        color: var(--text-muted);
+        font-size: 0.9rem;
+        margin-top: 12px;
+    }
+
+    .nav-arrows {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-top: 20px;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1 class="page-title">✍️ 漢字書き取り</h1>
+    <a href="{{ url_for('japanese_dashboard') }}" class="btn btn-secondary btn-sm">← 戻る</a>
+</div>
+
+<div class="card">
+    <p style="text-align: center;">漢字をなぞって書き方を練習しよう！読み方をタップすると音声で聞けるよ 🔊</p>
+
+    <!-- 読み方と音声 -->
+    <div style="text-align: center; margin: 20px 0;">
+        <div class="reading-badge" onclick="speakReading('{{ kanji.reading }}')">
+            🔊 {{ kanji.reading }}
+        </div>
+    </div>
+
+    <!-- 漢字ガイドとキャンバス -->
+    <div class="canvas-container" id="canvas-container">
+        <canvas id="guide-canvas" width="300" height="300"></canvas>
+        <canvas id="draw-canvas" width="300" height="300"></canvas>
+    </div>
+
+    <p class="stroke-hint">👆 上の漢字をなぞってね</p>
+
+    <!-- コントロール -->
+    <div class="controls">
+        <button class="btn btn-secondary" onclick="clearCanvas()">🗑️ 消す</button>
+        <button class="btn btn-primary" onclick="speakReading('{{ kanji.reading }}')">🔊 読み方</button>
+    </div>
+
+    <!-- 意味 -->
+    <div class="meaning-box">
+        <div style="font-size: 1.1rem; font-weight: 600;">🇨🇳 {{ kanji.meaning }}</div>
+        <div style="margin-top: 8px; color: var(--text-secondary);">📝 {{ kanji.example }}</div>
+    </div>
+
+    <!-- ナビゲーション -->
+    <div class="nav-arrows">
+        <a href="{{ url_for('japanese_writing', index=prev_index) }}" class="btn btn-secondary">⬅️ 前</a>
+        <span style="color: var(--text-muted);">{{ current_index + 1 }} / {{ total }}</span>
+        <a href="{{ url_for('japanese_writing', index=next_index) }}" class="btn btn-primary">次 ➡️</a>
+    </div>
+</div>
+
+<script>
+    const canvas = document.getElementById('draw-canvas');
+    const ctx = canvas.getContext('2d');
+    const guideCanvas = document.getElementById('guide-canvas');
+    const guideCtx = guideCanvas.getContext('2d');
+
+    let isDrawing = false;
+    let lastX = 0;
+    let lastY = 0;
+
+    // ガイド漢字を描画
+    function drawGuide() {
+        guideCtx.clearRect(0, 0, 300, 300);
+        guideCtx.font = '200px "Noto Sans JP", sans-serif';
+        guideCtx.fillStyle = '#e0e0e0';
+        guideCtx.textAlign = 'center';
+        guideCtx.textBaseline = 'middle';
+        guideCtx.fillText('{{ kanji.word }}', 150, 160);
+
+        // 十字線ガイド
+        guideCtx.strokeStyle = '#f0f0f0';
+        guideCtx.lineWidth = 1;
+        guideCtx.setLineDash([5, 5]);
+        guideCtx.beginPath();
+        guideCtx.moveTo(150, 0);
+        guideCtx.lineTo(150, 300);
+        guideCtx.moveTo(0, 150);
+        guideCtx.lineTo(300, 150);
+        guideCtx.stroke();
+        guideCtx.setLineDash([]);
+    }
+
+    // 描画設定
+    ctx.strokeStyle = '#e91e8c';
+    ctx.lineWidth = 8;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+
+    // タッチ/マウスイベント
+    function getPos(e) {
+        const rect = canvas.getBoundingClientRect();
+        const scaleX = canvas.width / rect.width;
+        const scaleY = canvas.height / rect.height;
+
+        if (e.touches) {
+            return {
+                x: (e.touches[0].clientX - rect.left) * scaleX,
+                y: (e.touches[0].clientY - rect.top) * scaleY
+            };
+        }
+        return {
+            x: (e.clientX - rect.left) * scaleX,
+            y: (e.clientY - rect.top) * scaleY
+        };
+    }
+
+    function startDraw(e) {
+        e.preventDefault();
+        isDrawing = true;
+        const pos = getPos(e);
+        lastX = pos.x;
+        lastY = pos.y;
+    }
+
+    function draw(e) {
+        if (!isDrawing) return;
+        e.preventDefault();
+
+        const pos = getPos(e);
+        ctx.beginPath();
+        ctx.moveTo(lastX, lastY);
+        ctx.lineTo(pos.x, pos.y);
+        ctx.stroke();
+        lastX = pos.x;
+        lastY = pos.y;
+    }
+
+    function endDraw() {
+        isDrawing = false;
+    }
+
+    // イベントリスナー
+    canvas.addEventListener('mousedown', startDraw);
+    canvas.addEventListener('mousemove', draw);
+    canvas.addEventListener('mouseup', endDraw);
+    canvas.addEventListener('mouseleave', endDraw);
+
+    canvas.addEventListener('touchstart', startDraw, { passive: false });
+    canvas.addEventListener('touchmove', draw, { passive: false });
+    canvas.addEventListener('touchend', endDraw);
+
+    // キャンバスクリア
+    function clearCanvas() {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+    }
+
+    // 音声読み上げ
+    function speakReading(text) {
+        if ('speechSynthesis' in window) {
+            // 既存の音声をキャンセル
+            speechSynthesis.cancel();
+
+            const utterance = new SpeechSynthesisUtterance(text);
+            utterance.lang = 'ja-JP';
+            utterance.rate = 0.8;
+            utterance.pitch = 1;
+
+            // 日本語音声を探す
+            const voices = speechSynthesis.getVoices();
+            const japaneseVoice = voices.find(v => v.lang.includes('ja'));
+            if (japaneseVoice) {
+                utterance.voice = japaneseVoice;
+            }
+
+            speechSynthesis.speak(utterance);
+        } else {
+            alert('お使いのブラウザは音声読み上げに対応していません。');
+        }
+    }
+
+    // 音声リストを読み込む
+    if ('speechSynthesis' in window) {
+        speechSynthesis.getVoices();
+        speechSynthesis.onvoiceschanged = () => speechSynthesis.getVoices();
+    }
+
+    // 初期化
+    drawGuide();
+</script>
+{% endblock %}

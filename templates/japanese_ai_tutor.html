@@ -1,0 +1,99 @@
+{% extends "base.html" %}
+
+{% block title %}AIチューター - 七夢学習アプリ{% endblock %}
+
+{% block head %}
+<style>
+    .ai-input {
+        display: flex;
+        gap: 12px;
+        margin-bottom: 20px;
+    }
+
+    .ai-input input {
+        flex: 1;
+    }
+
+    .ai-response {
+        background: white;
+        border: 2px solid var(--primary);
+        border-radius: 16px;
+        padding: 20px;
+        margin-top: 20px;
+    }
+
+    .ai-response h3 {
+        color: var(--primary);
+        margin-bottom: 12px;
+    }
+
+    .loading {
+        text-align: center;
+        padding: 40px;
+        color: var(--text-muted);
+    }
+
+    .loading-spinner {
+        display: inline-block;
+        width: 40px;
+        height: 40px;
+        border: 4px solid var(--border);
+        border-top-color: var(--primary);
+        border-radius: 50%;
+        animation: spin 1s linear infinite;
+    }
+
+    @keyframes spin {
+        to {
+            transform: rotate(360deg);
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1 class="page-title">🤖 AIチューター</h1>
+    <a href="{{ url_for('japanese_dashboard') }}" class="btn btn-secondary btn-sm">← 戻る</a>
+</div>
+
+<div class="card">
+    <p>漢字や熟語を入力すると、AIが読み方・意味・例文を教えてくれるよ！</p>
+
+    <form method="POST" id="ai-form">
+        <div class="ai-input">
+            <input type="text" name="query" class="form-input" placeholder="例: 勉強" value="{{ query or '' }}" required>
+            <button type="submit" class="btn btn-primary">質問する</button>
+        </div>
+    </form>
+
+    {% if loading %}
+    <div class="loading">
+        <div class="loading-spinner"></div>
+        <p>AIが考え中...</p>
+    </div>
+    {% endif %}
+
+    {% if response %}
+    <div class="ai-response">
+        <h3>🤖 AIの回答</h3>
+        <div style="white-space: pre-wrap;">{{ response }}</div>
+    </div>
+    {% endif %}
+
+    {% if error %}
+    <div class="alert alert-error">
+        {{ error }}
+    </div>
+    {% endif %}
+</div>
+
+<div class="card">
+    <h3 class="card-title">💡 質問のヒント</h3>
+    <ul style="margin-left: 20px; color: var(--text-secondary);">
+        <li>「勉強」の読み方と意味を教えて</li>
+        <li>「学校」を使った例文を作って</li>
+        <li>「友達」と「友人」の違いは？</li>
+    </ul>
+</div>
+{% endblock %}

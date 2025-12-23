@@ -1,0 +1,108 @@
+{% extends "base.html" %}
+
+{% block title %}生徒管理 - 石川七夢講師専用学習アプリ{% endblock %}
+
+{% block content %}
+<div class="fade-in">
+    <div class="page-header">
+        <h1 class="page-title">👥 生徒管理</h1>
+    </div>
+
+    <!-- 生徒追加フォーム -->
+    <div class="card" style="margin-bottom: 1.5rem;">
+        <h2 class="card-title">➕ 新しい生徒を追加</h2>
+        <form method="POST" action="{{ url_for('add_student') }}">
+            <div style="display: grid; grid-template-columns: 1fr 1fr 1fr auto; gap: 1rem; align-items: end;">
+                <div class="form-group" style="margin-bottom: 0;">
+                    <label class="form-label" for="username">ユーザー名（ログイン用）</label>
+                    <input type="text" id="username" name="username" class="form-input" placeholder="例: tanaka"
+                        required>
+                </div>
+                <div class="form-group" style="margin-bottom: 0;">
+                    <label class="form-label" for="display_name">表示名</label>
+                    <input type="text" id="display_name" name="display_name" class="form-input" placeholder="例: 田中太郎"
+                        required>
+                </div>
+                <div class="form-group" style="margin-bottom: 0;">
+                    <label class="form-label" for="password">パスワード</label>
+                    <input type="password" id="password" name="password" class="form-input" placeholder="パスワード"
+                        required>
+                </div>
+                <button type="submit" class="btn btn-primary">追加</button>
+            </div>
+            <div style="margin-top: 12px;">
+                <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                    <input type="checkbox" name="is_chinese_student" value="1" style="width: 18px; height: 18px;">
+                    <span>🇨🇳 中国人生徒（日本語学習機能を有効にする）</span>
+                </label>
+            </div>
+        </form>
+    </div>
+
+    <!-- 生徒一覧 -->
+    <div class="card">
+        <h2 class="card-title">📋 登録済みの生徒 ({{ students|length }}名)</h2>
+
+        {% if students %}
+        <table style="width: 100%; border-collapse: collapse;">
+            <thead>
+                <tr style="border-bottom: 1px solid var(--border);">
+                    <th style="text-align: left; padding: 0.75rem; color: var(--text-secondary);">表示名</th>
+                    <th style="text-align: left; padding: 0.75rem; color: var(--text-secondary);">ユーザー名</th>
+                    <th style="text-align: left; padding: 0.75rem; color: var(--text-secondary);">タイプ</th>
+                    <th style="text-align: left; padding: 0.75rem; color: var(--text-secondary);">回答数</th>
+                    <th style="text-align: left; padding: 0.75rem; color: var(--text-secondary);">登録日</th>
+                    <th style="text-align: right; padding: 0.75rem;"></th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for student in students %}
+                <tr style="border-bottom: 1px solid var(--border);">
+                    <td style="padding: 0.75rem;">{{ student.display_name }}</td>
+                    <td style="padding: 0.75rem; color: var(--text-secondary);">{{ student.username }}</td>
+                    <td style="padding: 0.75rem;">
+                        {% if student.is_chinese_student %}
+                        <span class="status-badge" style="background: #e3f2fd; color: #1976d2;">🇨🇳 中国人</span>
+                        {% else %}
+                        <span class="status-badge">通常</span>
+                        {% endif %}
+                    </td>
+                    <td style="padding: 0.75rem;">
+                        <span class="status-badge status-submitted">{{ student.answers.count() }}件</span>
+                    </td>
+                    <td style="padding: 0.75rem; color: var(--text-muted);">{{ student.created_at|jst('%Y/%m/%d')
+                        }}</td>
+                    <td style="padding: 0.75rem; text-align: right;">
+                        <!-- 中国人生徒切り替えボタン -->
+                        <form method="POST" action="{{ url_for('toggle_chinese_student', student_id=student.id) }}"
+                            style="display: inline;">
+                            <button type="submit" class="btn btn-secondary btn-sm" style="margin-right: 0.5rem;">
+                                {% if student.is_chinese_student %}🇯🇵 解除{% else %}🇨🇳 有効化{% endif %}
+                            </button>
+                        </form>
+                        <a href="{{ url_for('student_progress', student_id=student.id) }}"
+                            class="btn btn-secondary btn-sm" style="margin-right: 0.5rem;">
+                            📊 詳細
+                        </a>
+                        <form method="POST" action="{{ url_for('delete_student', student_id=student.id) }}"
+                            style="display: inline;">
+                            <button type="submit" class="btn btn-danger btn-sm"
+                                onclick="return confirmDelete('{{ student.display_name }}さんを削除しますか？関連するすべての回答も削除されます。')">
+                                🗑️ 削除
+                            </button>
+                        </form>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% else %}
+        <div class="empty-state">
+            <div class="empty-icon">👥</div>
+            <p>登録されている生徒がいません。</p>
+            <p style="margin-top: 0.5rem; font-size: 0.875rem;">上のフォームから生徒を追加してください。</p>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

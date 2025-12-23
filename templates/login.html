@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+
+{% block title %}ログイン - 石川七夢講師専用学習アプリ{% endblock %}
+
+{% block content %}
+<div class="login-container">
+    <div class="card login-card fade-in">
+        <div class="logo-icon" style="font-size: 3rem; margin-bottom: 1rem;">📚</div>
+        <h1 class="login-title">石川七夢講師専用学習アプリ</h1>
+        <p class="login-subtitle">学習をサポートするプラットフォーム</p>
+
+        <form method="POST" action="{{ url_for('login') }}">
+            <div class="form-group">
+                <label class="form-label" for="username">ユーザー名</label>
+                <input type="text" id="username" name="username" class="form-input" required autofocus>
+            </div>
+
+            <div class="form-group">
+                <label class="form-label" for="password">パスワード</label>
+                <input type="password" id="password" name="password" class="form-input" required>
+            </div>
+
+            <button type="submit" class="btn btn-primary" style="width: 100%; margin-top: 1rem;">
+                ログイン
+            </button>
+        </form>
+    </div>
+</div>
+{% endblock %}

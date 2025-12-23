@@ -1,0 +1,598 @@
+{% extends "base.html" %}
+
+{% block title %}問題を編集 - 石川七夢講師専用学習アプリ{% endblock %}
+
+{% block head %}
+<style>
+    /* ツールバー */
+    .quick-tools {
+        display: flex;
+        gap: 8px;
+        margin-bottom: 12px;
+        flex-wrap: wrap;
+        align-items: center;
+    }
+
+    .quick-tool {
+        padding: 8px 14px;
+        border-radius: 20px;
+        background: var(--bg-card);
+        border: 1px solid var(--border);
+        color: var(--text-primary);
+        font-size: 0.85rem;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+    }
+
+    .quick-tool:hover {
+        background: var(--bg-hover);
+    }
+
+    .quick-tool.primary-action {
+        border-color: var(--primary);
+        color: var(--primary);
+        font-weight: 600;
+        background: rgba(233, 30, 140, 0.05);
+    }
+
+    /* エディタ内ウィジェット */
+    .question-widget {
+        border: 2px solid var(--primary);
+        background: #f8f9fa;
+        padding: 10px;
+        margin: 10px 0;
+        border-radius: 8px;
+        user-select: none;
+    }
+
+    .question-widget .widget-header {
+        font-weight: bold;
+        color: var(--primary);
+        margin-bottom: 5px;
+        border-bottom: 1px solid #ddd;
+        padding-bottom: 5px;
+    }
+
+    /* モーダル */
+    .modal-overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(0, 0, 0, 0.5);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 2000;
+        opacity: 0;
+        pointer-events: none;
+        transition: opacity 0.2s;
+    }
+
+    .modal-overlay.active {
+        opacity: 1;
+        pointer-events: auto;
+    }
+
+    .modal-content {
+        background: white;
+        padding: 24px;
+        border-radius: 12px;
+        width: 100%;
+        max-width: 500px;
+        max-height: 80vh;
+        overflow-y: auto;
+    }
+
+    .choice-row {
+        display: flex;
+        gap: 8px;
+        margin-bottom: 8px;
+        align-items: center;
+    }
+
+    .choice-row input[type="text"] {
+        flex: 1;
+        padding: 8px;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+    }
+
+    .remove-choice-btn {
+        background: #ff4444;
+        color: white;
+        border: none;
+        width: 24px;
+        height: 24px;
+        border-radius: 50%;
+        cursor: pointer;
+        font-size: 14px;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="fade-in">
+    <div class="page-header">
+        <h1 class="page-title">✏️ 問題を編集 (ブロックエディタ)</h1>
+        <a href="{{ url_for('view_problem', problem_id=problem.id) }}" class="btn btn-secondary">キャンセル</a>
+    </div>
+
+    <div class="card">
+        <h2 class="card-title">📝 問題設定</h2>
+        <form id="edit-problem-form" method="POST" action="{{ url_for('edit_problem', problem_id=problem.id) }}">
+            <div class="form-group">
+                <label class="form-label" for="title">タイトル</label>
+                <input type="text" id="title" name="title" class="form-input" required value="{{ problem.title }}">
+            </div>
+
+            <div class="form-group">
+                <label class="form-label" for="deadline">提出期限 (任意)</label>
+                <input type="datetime-local" id="deadline" name="deadline" class="form-input"
+                    value="{{ problem.deadline.strftime('%Y-%m-%dT%H:%M') if problem.deadline else '' }}">
+            </div>
+
+            <input type="hidden" id="content" name="content">
+            <input type="hidden" name="problem_type" value="mixed">
+
+            <hr style="margin: 2rem 0; border: 0; border-top: 1px solid var(--border);">
+
+            <h2 class="card-title">🧩 問題コンテンツ</h2>
+            <div id="form-blocks-container"
+                style="display: flex; flex-direction: column; gap: 24px; min-height: 200px; margin-bottom: 2rem;">
+                <!-- ここにブロックが展開されます -->
+            </div>
+
+            <!-- ツールバー -->
+            <div class="sticky-toolbar"
+                style="position: sticky; bottom: 20px; background: white; padding: 12px 24px; border-radius: 50px; box-shadow: 0 4px 20px rgba(0,0,0,0.15); border: 1px solid var(--border); display: flex; gap: 16px; justify-content: center; z-index: 100; max-width: Fit-content; margin: 0 auto;">
+                <button type="button" class="btn btn-secondary" onclick="addTextBlock()" style="border-radius: 20px;">
+                    � 説明文
+                </button>
+                <div style="width: 1px; background: #ddd; margin: 0 4px;"></div>
+                <button type="button" class="btn btn-primary" onclick="addWidgetBlock('choice')"
+                    style="border-radius: 20px;">
+                    🔴 選択(単一)
+                </button>
+                <button type="button" class="btn btn-primary" onclick="addWidgetBlock('checkbox')"
+                    style="border-radius: 20px;">
+                    ☑️ 選択(複数)
+                </button>
+                <button type="button" class="btn btn-primary" onclick="addWidgetBlock('text')"
+                    style="border-radius: 20px;">
+                    ✏️ 記述
+                </button>
+            </div>
+
+            <div style="text-align: right; margin-top: 2rem; padding-bottom: 4rem;">
+                <button type="submit" class="btn btn-success"
+                    style="padding: 12px 32px; font-size: 1.1rem; box-shadow: 0 4px 12px rgba(76, 175, 80, 0.3);">
+                    💾 変更を保存する
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- 既存コンテンツ（パース用非表示） -->
+<div id="raw-content" style="display: none;">{{ problem.content|safe }}</div>
+{% endblock %}
+
+{% block scripts %}
+<style>
+    .content-block {
+        background: white;
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        padding: 20px;
+        position: relative;
+        transition: box-shadow 0.2s;
+    }
+
+    .content-block:hover {
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+    }
+
+    .block-controls {
+        position: absolute;
+        right: 10px;
+        top: 10px;
+        opacity: 0.3;
+        transition: opacity 0.2s;
+        display: flex;
+        gap: 8px;
+    }
+
+    .content-block:hover .block-controls {
+        opacity: 1;
+    }
+
+    .block-btn {
+        background: #f0f0f0;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+        width: 32px;
+        height: 32px;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.2rem;
+    }
+
+    .block-btn:hover {
+        background: #e0e0e0;
+        color: var(--danger);
+    }
+
+    .widget-preview {
+        background: #f8f9fa;
+        padding: 16px;
+        border-radius: 8px;
+        border: 1px dashed #ccc;
+        margin-top: 12px;
+    }
+
+    .choice-list {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        margin-top: 12px;
+    }
+
+    .choice-item {
+        display: flex;
+        gap: 8px;
+        align-items: center;
+    }
+
+    .choice-input {
+        flex: 1;
+        padding: 10px;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+        font-size: 1rem;
+    }
+
+    .widget-header-input {
+        width: 100%;
+        padding: 8px;
+        font-size: 1rem;
+        font-weight: bold;
+        color: var(--primary);
+        border: 1px solid transparent;
+        border-bottom: 1px solid #ddd;
+        margin-bottom: 8px;
+    }
+</style>
+
+<script>
+    const container = document.getElementById('form-blocks-container');
+    let blockCount = 0;
+
+    function createBlockWrapper(typeIcon, title) {
+        const div = document.createElement('div');
+        div.className = 'content-block';
+        div.innerHTML = `
+            <div style="font-weight:bold; color:var(--text-secondary); margin-bottom:12px; display:flex; align-items:center; gap:8px;">
+                <span>${typeIcon}</span> ${title}
+            </div>
+            <div class="block-content"></div>
+            <div class="block-controls">
+                <button type="button" class="block-btn" onclick="moveBlock(this, -1)" title="上へ">⬆️</button>
+                <button type="button" class="block-btn" onclick="moveBlock(this, 1)" title="下へ">⬇️</button>
+                <button type="button" class="block-btn" onclick="deleteBlock(this)" title="削除">🗑️</button>
+            </div>
+        `;
+        return div;
+    }
+
+    // テキストブロック初期化
+    function initTextBlock(initialContent = '') {
+        const wrapper = createBlockWrapper('📝', '説明文・問題文');
+        wrapper.dataset.type = 'text-block';
+
+        const editorId = `quill-${blockCount++}`;
+        const editorDiv = document.createElement('div');
+        editorDiv.id = editorId;
+        editorDiv.style.height = '150px';
+        editorDiv.style.background = 'white';
+        editorDiv.style.marginBottom = '10px';
+        editorDiv.innerHTML = initialContent;
+
+        wrapper.querySelector('.block-content').appendChild(editorDiv);
+        container.appendChild(wrapper);
+
+        new Quill(`#${editorId}`, {
+            theme: 'snow',
+            modules: {
+                toolbar: [
+                    [{ 'header': [1, 2, false] }],
+                    ['bold', 'italic', 'underline', 'strike'],
+                    [{ 'color': [] }, { 'background': [] }],
+                    [{ 'list': 'ordered' }, { 'list': 'bullet' }],
+                    ['link', 'image', 'clean']
+                ]
+            },
+            placeholder: 'ここに文章を入力...'
+        });
+    }
+
+    // ウィジェットブロック初期化
+    function initWidgetBlock(type, choices = [], description = '') {
+        let title = '';
+        let icon = '';
+        if (type === 'choice') { title = '選択問題 (単一選択)'; icon = '🔴'; }
+        if (type === 'checkbox') { title = '選択問題 (複数選択)'; icon = '☑️'; }
+        if (type === 'text') { title = '記述問題'; icon = '✏️'; }
+
+        const wrapper = createBlockWrapper(icon, title);
+        wrapper.dataset.type = 'widget';
+        wrapper.dataset.widgetType = type;
+
+        // descriptionのサニタイズ解除 (input value用)
+        // ここでは単純に渡された文字列をvalueに入れる
+
+        let contentHtml = '';
+        if (type === 'text') {
+            contentHtml = `
+                <div class="widget-preview">
+                    <label style="font-weight:bold; display:block; margin-bottom:8px;">問題文・説明 (任意)</label>
+                    <textarea class="widget-description-input" placeholder="この解答欄に関する説明や問題文を入力..." style="width:100%; padding:8px; border:1px solid #ddd; border-radius:4px; margin-bottom:16px; min-height:60px;">${description}</textarea>
+
+                    <div style="color:#666; font-size:0.9rem; margin-bottom:8px;">回答入力欄プレビュー:</div>
+                    <div style="background:#fff; padding:12px; border:2px solid #ccc; border-radius:4px; height:80px; color:#999; display:flex; align-items:center;">
+                        [ここに生徒が回答を入力する枠が表示されます]
+                    </div>
+                </div>
+            `;
+        } else {
+            let choiceItems = '';
+            choices.forEach((c) => {
+                choiceItems += `
+                <div class="choice-item">
+                    <input type="text" class="choice-input" placeholder="選択肢を入力..." value="${c}" oninput="updateChoicesData(this)">
+                    <button type="button" class="btn btn-danger btn-sm" onclick="removeChoice(this)">×</button>
+                </div>`;
+            });
+
+            contentHtml = `
+                <div style="background:#f8f9fa; padding:16px; border-radius:8px;">
+                    <label style="font-weight:bold; display:block; margin-bottom:8px;">問題文・説明 (任意)</label>
+                    <textarea class="widget-description-input" placeholder="この解答欄に関する説明や問題文を入力..." style="width:100%; padding:8px; border:1px solid #ddd; border-radius:4px; margin-bottom:16px; min-height:60px;">${description}</textarea>
+
+                    <label style="font-weight:bold; display:block; margin-bottom:8px;">選択肢を設定</label>
+                    <div class="choice-list">
+                        ${choiceItems}
+                    </div>
+                    <button type="button" class="btn btn-secondary btn-sm" style="margin-top:12px;" onclick="addChoice(this)">＋ 選択肢を追加</button>
+                    
+                    <div class="widget-preview" style="margin-top:16px;">
+                        <div style="color:#666; font-size:0.9rem; margin-bottom:4px;">生徒側の表示プレビュー:</div>
+                        <div class="preview-area" style="display:flex; flex-direction:column; gap:4px;"></div>
+                    </div>
+                </div>
+            `;
+        }
+
+        wrapper.querySelector('.block-content').innerHTML = contentHtml;
+        container.appendChild(wrapper);
+
+        if (type !== 'text') updatePreview(wrapper);
+    }
+
+    // パブリック関数 (ボタンクリック用)
+    window.addTextBlock = () => { initTextBlock(); };
+    window.addWidgetBlock = (type) => { initWidgetBlock(type, ['はい', 'いいえ']); };
+
+    // --- 既存ロジック ---
+    window.addChoice = function (btn) {
+        const list = btn.parentElement.querySelector('.choice-list');
+        const div = document.createElement('div');
+        div.className = 'choice-item';
+        div.innerHTML = `
+            <input type="text" class="choice-input" placeholder="選択肢を入力..." oninput="updateChoicesData(this)">
+            <button type="button" class="btn btn-danger btn-sm" onclick="removeChoice(this)">×</button>
+        `;
+        list.appendChild(div);
+        div.querySelector('input').focus();
+        updatePreview(btn.closest('.content-block'));
+    };
+
+    window.removeChoice = function (btn) {
+        const block = btn.closest('.content-block');
+        const list = btn.closest('.choice-list');
+        if (list.children.length > 1) {
+            btn.closest('.choice-item').remove();
+            updatePreview(block);
+        } else {
+            alert('選択肢は最低1つ必要です。');
+        }
+    };
+
+    window.updateChoicesData = function (input) { updatePreview(input.closest('.content-block')); };
+
+    function updatePreview(block) {
+        const type = block.dataset.widgetType;
+        const inputs = Array.from(block.querySelectorAll('.choice-input'));
+        const previewArea = block.querySelector('.preview-area');
+        if (!previewArea) return;
+
+        let html = '';
+        inputs.forEach(input => {
+            const val = input.value || '(空)';
+            const mark = type === 'choice' ? '⭕' : '☑️';
+            html += `
+                <div style="padding:10px 16px; background:white; border:1px solid #ddd; border-radius:8px; display:flex; align-items:center; gap:10px;">
+                    <span style="font-size:1.2rem;">${mark}</span>
+                    <span style="font-weight:500;">${val}</span>
+                </div>
+            `;
+        });
+        previewArea.innerHTML = html;
+        const choices = inputs.map(i => i.value).filter(v => v.trim() !== "");
+        block.dataset.choices = JSON.stringify(choices);
+    }
+
+    window.moveBlock = function (btn, dir) {
+        const block = btn.closest('.content-block');
+        if (dir === -1 && block.previousElementSibling) {
+            block.parentNode.insertBefore(block, block.previousElementSibling);
+        } else if (dir === 1 && block.nextElementSibling) {
+            block.parentNode.insertBefore(block.nextElementSibling, block);
+        }
+    };
+
+    window.deleteBlock = function (btn) {
+        if (confirm('削除しますか？')) btn.closest('.content-block').remove();
+    };
+
+    // --- パース処理 ---
+    document.addEventListener('DOMContentLoaded', function () {
+        const rawContent = document.getElementById('raw-content');
+        if (!rawContent) return;
+
+        const tempDiv = document.createElement('div');
+        tempDiv.innerHTML = rawContent.innerHTML;
+
+        // 子要素を走査してブロック化
+        const childNodes = Array.from(tempDiv.childNodes);
+        let buffer = document.createElement('div');
+
+        const flushBuffer = () => {
+            // バッファに意味のあるコンテンツがあるか？
+            if (buffer.innerHTML.trim() !== '' && buffer.innerText.trim() !== '') {
+                initTextBlock(buffer.innerHTML);
+            } else if (buffer.querySelector('img')) {
+                initTextBlock(buffer.innerHTML);
+            }
+            buffer = document.createElement('div'); // Reset
+        };
+
+        childNodes.forEach(node => {
+            if (node.nodeType === Node.ELEMENT_NODE && (node.classList.contains('question-widget') || (node.querySelector && node.querySelector('.question-widget')))) {
+                // ウィジェット発見
+                flushBuffer();
+
+                // node自体がwidgetか、中にwidgetを持っているか
+                let widget = node.classList.contains('question-widget') ? node : node.querySelector('.question-widget');
+
+                if (widget) {
+                    const type = widget.dataset.widgetType;
+                    const choices = JSON.parse(widget.dataset.choices || '[]');
+                    // 説明文の抽出
+                    const descDiv = widget.querySelector('.widget-description');
+                    // innerTextだと改行が消える場合があるので、innerHTMLから<br>を戻す
+                    let description = '';
+                    if (descDiv) {
+                        description = descDiv.innerHTML.replace(/<br\s*\/?>/gi, '\n');
+                        // HTMLアンエスケープ (簡易)
+                        const txt = document.createElement('textarea');
+                        txt.innerHTML = description;
+                        description = txt.value;
+                    }
+                    initWidgetBlock(type, choices, description);
+                }
+            } else if (node.nodeType === Node.ELEMENT_NODE && node.classList.contains('block-widget')) {
+                // 新形式のラッパー
+                flushBuffer();
+                let widget = node.querySelector('.question-widget');
+                if (widget) {
+                    const type = widget.dataset.widgetType;
+                    const choices = JSON.parse(widget.dataset.choices || '[]');
+                    // 説明文の抽出
+                    const descDiv = widget.querySelector('.widget-description');
+                    let description = '';
+                    if (descDiv) {
+                        description = descDiv.innerHTML.replace(/<br\s*\/?>/gi, '\n');
+                        const txt = document.createElement('textarea');
+                        txt.innerHTML = description;
+                        description = txt.value;
+                    }
+                    initWidgetBlock(type, choices, description);
+                }
+            } else if (node.nodeType === Node.ELEMENT_NODE && node.classList.contains('block-text')) {
+                // 新形式のテキストブロック
+                flushBuffer(); // 前のバッファがあれば吐き出す
+                initTextBlock(node.innerHTML);
+            } else {
+                // 通常のコンテンツ -> バッファへ
+                buffer.appendChild(node.cloneNode(true));
+            }
+        });
+
+        // 最後に残ったバッファを吐き出す
+        flushBuffer();
+    });
+
+    // 送信処理
+    document.getElementById('edit-problem-form').addEventListener('submit', function (e) {
+        const blocks = container.querySelectorAll('.content-block');
+        let finalHtml = '';
+        let hasContent = false;
+
+        blocks.forEach(block => {
+            if (block.dataset.type === 'text-block') {
+                const editor = Quill.find(block.querySelector('.ql-container'));
+                const html = editor.root.innerHTML;
+                if (editor.getText().trim().length > 0 || html.includes('<img')) {
+                    finalHtml += `<div class="block-text" style="margin-bottom:1rem;">${html}</div>`;
+                    hasContent = true;
+                }
+            } else if (block.dataset.type === 'widget') {
+                const type = block.dataset.widgetType;
+                let widgetHtml = '';
+
+                if (type === 'text') {
+                    const description = block.querySelector('.widget-description-input')?.value || '';
+                    const safeDesc = description.replace(/"/g, '&quot;').replace(/\n/g, '<br>');
+
+                    widgetHtml = `
+                    <div class="question-widget" data-widget-type="text" contenteditable="false">
+                        <div class="widget-header">✏️ 記述回答欄</div>
+                        ${description ? `<div class="widget-description" style="margin-bottom:8px; font-weight:bold;">${safeDesc}</div>` : ''}
+                        <div class="widget-active-content">
+                            <div style="background:#fff; padding:12px; border:2px solid #ccc; border-radius:4px; height:60px; color:#999; display:flex; align-items:center;">[ここに生徒が回答を入力する枠が表示されます]</div>
+                        </div>
+                    </div>`;
+                    hasContent = true;
+                } else {
+                    const choices = block.dataset.choices || '[]';
+                    const safeChoices = choices.replace(/"/g, '&quot;');
+                    const displayChoices = JSON.parse(choices);
+                    const description = block.querySelector('.widget-description-input')?.value || '';
+                    const safeDesc = description.replace(/"/g, '&quot;').replace(/\n/g, '<br>');
+
+                    let previewList = '';
+                    displayChoices.forEach(c => {
+                        const mark = type === 'choice' ? '🔴' : '☑️';
+                        previewList += `<div style="display:flex; gap:8px; margin-top:4px;"><span style="color:var(--primary)">${mark}</span> ${c}</div>`;
+                    });
+                    const label = type === 'choice' ? '🔴 選択回答欄 (単一)' : '☑️ 選択回答欄 (複数)';
+                    widgetHtml = `
+                    <div class="question-widget" data-widget-type="${type}" data-choices="${safeChoices}" contenteditable="false">
+                        <div class="widget-header">${label}</div>
+                        ${description ? `<div class="widget-description" style="margin-bottom:8px; font-weight:bold;">${safeDesc}</div>` : ''}
+                        <div class="widget-active-content">
+                            ${previewList}
+                        </div>
+                    </div>`;
+                    hasContent = true;
+                }
+                finalHtml += `<div class="block-widget" style="margin: 1.5rem 0;">${widgetHtml}</div>`;
+            }
+        });
+
+        if (!hasContent) {
+            e.preventDefault();
+            alert('中身が空です');
+            return;
+        }
+
+        document.getElementById('content').value = finalHtml;
+    });
+</script>
+{% endblock %}

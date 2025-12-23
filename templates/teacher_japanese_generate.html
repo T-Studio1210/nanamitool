@@ -1,0 +1,109 @@
+{% extends "base.html" %}
+
+{% block title %}AI問題生成 - 七夢学習アプリ{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1 class="page-title">✨ AI問題一括生成</h1>
+    <a href="{{ url_for('dashboard') }}" class="btn btn-secondary btn-sm">← 戻る</a>
+</div>
+
+<div class="card">
+    <p>AIを使って日本語学習用の熟語クイズを一括生成します。生成された問題はデータベースに保存され、生徒がすぐに使えるようになります。</p>
+
+    <form method="POST" id="generate-form">
+        <div class="form-group">
+            <label class="form-label">難易度</label>
+            <div style="display: flex; gap: 12px;">
+                <label style="display: flex; align-items: center; gap: 6px; cursor: pointer;">
+                    <input type="radio" name="difficulty" value="easy" checked> 🌱 かんたん (N5)
+                </label>
+                <label style="display: flex; align-items: center; gap: 6px; cursor: pointer;">
+                    <input type="radio" name="difficulty" value="medium"> 🌿 ふつう (N4)
+                </label>
+                <label style="display: flex; align-items: center; gap: 6px; cursor: pointer;">
+                    <input type="radio" name="difficulty" value="hard"> 🌳 むずかしい (N3)
+                </label>
+            </div>
+        </div>
+
+        <div class="form-group">
+            <label class="form-label" for="count">生成する問題数</label>
+            <select name="count" id="count" class="form-input">
+                <option value="3">3問</option>
+                <option value="5" selected>5問</option>
+                <option value="10">10問</option>
+            </select>
+        </div>
+
+        <div class="form-group">
+            <label class="form-label" for="theme">テーマ（任意）</label>
+            <input type="text" name="theme" id="theme" class="form-input" placeholder="例: 学校、食べ物、動物など">
+        </div>
+
+        <button type="submit" class="btn btn-primary btn-block" id="submit-btn">
+            ✨ AIで問題を生成
+        </button>
+    </form>
+</div>
+
+{% if generated_problems %}
+<div class="card">
+    <h2 class="card-title">📋 生成された問題 ({{ generated_problems|length }}問)</h2>
+
+    {% for prob in generated_problems %}
+    <div style="padding: 12px; background: var(--bg-hover); border-radius: 8px; margin-bottom: 12px;">
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+            <div>
+                <strong style="font-size: 1.3rem;">{{ prob.word }}</strong>
+                <span style="color: var(--text-muted);">（{{ prob.correct_reading }}）</span>
+            </div>
+            <span style="color: #4caf50;">✅ 保存済み</span>
+        </div>
+        <div style="margin-top: 6px; font-size: 0.9rem; color: var(--text-secondary);">
+            🇨🇳 {{ prob.meaning_chinese }}
+        </div>
+        <div style="margin-top: 4px; font-size: 0.85rem; color: var(--text-muted);">
+            📝 {{ prob.example }}
+        </div>
+    </div>
+    {% endfor %}
+
+    <a href="{{ url_for('teacher_japanese_problems') }}" class="btn btn-secondary btn-block">
+        📋 すべての問題を管理
+    </a>
+</div>
+{% endif %}
+
+{% if error %}
+<div class="alert alert-error">
+    {{ error }}
+</div>
+{% endif %}
+
+<!-- 現在の問題数 -->
+<div class="card">
+    <h2 class="card-title">📊 問題統計</h2>
+    <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px;">
+        <div class="stat-card">
+            <div class="stat-icon">📚</div>
+            <div class="stat-value">{{ total_problems }}</div>
+            <div class="stat-label">登録済み問題数</div>
+        </div>
+        <a href="{{ url_for('teacher_japanese_problems') }}" class="stat-card"
+            style="text-decoration: none; cursor: pointer;">
+            <div class="stat-icon" style="background: var(--secondary);">⚙️</div>
+            <div class="stat-value">管理</div>
+            <div class="stat-label">問題を管理する</div>
+        </a>
+    </div>
+</div>
+
+<script>
+    document.getElementById('generate-form').addEventListener('submit', function () {
+        const btn = document.getElementById('submit-btn');
+        btn.disabled = true;
+        btn.innerHTML = '⏳ AIが問題を生成中...（しばらくお待ちください）';
+    });
+</script>
+{% endblock %}

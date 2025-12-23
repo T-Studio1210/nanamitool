@@ -1,0 +1,367 @@
+{% extends "base.html" %}
+
+{% block content %}
+<style>
+    .problem-container {
+        max-width: 800px;
+        margin: 0 auto;
+        padding: 2rem;
+    }
+
+    .back-link {
+        display: inline-block;
+        margin-bottom: 1rem;
+        color: #666;
+        text-decoration: none;
+    }
+
+    .back-link:hover {
+        text-decoration: underline;
+    }
+
+    .completion-banner {
+        background: #e8f5e9;
+        padding: 1rem;
+        border-radius: 8px;
+        margin-bottom: 1rem;
+        border: 1px solid #c8e6c9;
+    }
+
+    .completed-date {
+        font-size: 0.9rem;
+        color: #666;
+        margin-top: 0.5rem;
+    }
+
+    .teacher-feedback {
+        margin-top: 1rem;
+        padding: 1rem;
+        background: #fff3e0;
+        border: 1px solid #ffcc80;
+        border-radius: 8px;
+    }
+
+    .teacher-feedback h4 {
+        margin: 0 0 0.5rem 0;
+        font-size: 1rem;
+        color: #e65100;
+    }
+
+    .flashcard-container {
+        perspective: 1000px;
+        height: 400px;
+        margin: 2rem 0;
+        cursor: pointer;
+    }
+
+    .flashcard {
+        width: 100%;
+        height: 100%;
+        position: relative;
+        transform-style: preserve-3d;
+        transition: transform 0.6s;
+        box-shadow: 0 10px 20px rgba(0, 0, 0, 0.1);
+        border-radius: 16px;
+        background: white;
+    }
+
+    .flashcard.flipped {
+        transform: rotateY(180deg);
+    }
+
+    .front,
+    .back {
+        position: absolute;
+        width: 100%;
+        height: 100%;
+        backface-visibility: hidden;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+        padding: 2rem;
+        box-sizing: border-box;
+        border-radius: 16px;
+    }
+
+    .front {
+        background: linear-gradient(135deg, #fff 0%, #f5f5ff 100%);
+    }
+
+    .back {
+        transform: rotateY(180deg);
+        background: linear-gradient(135deg, #fff 0%, #fffde7 100%);
+        border: 2px solid #fff59d;
+    }
+
+    .card-word {
+        font-size: 5rem;
+        font-weight: bold;
+        margin: 0;
+        color: #333;
+    }
+
+    .tap-hint {
+        margin-top: 2rem;
+        color: #999;
+        font-size: 0.9rem;
+    }
+
+    .card-reading {
+        font-size: 2rem;
+        margin: 0 0 1rem 0;
+        color: #d32f2f;
+    }
+
+    .card-meaning {
+        font-size: 1.5rem;
+        margin: 0 0 2rem 0;
+        color: #333;
+    }
+
+    .card-example {
+        font-style: italic;
+        color: #666;
+        text-align: center;
+        line-height: 1.6;
+    }
+
+    /* 音声ボタン */
+    .audio-section {
+        margin: 1.5rem 0;
+        display: flex;
+        gap: 0.5rem;
+        justify-content: center;
+        flex-wrap: wrap;
+    }
+
+    .audio-btn {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        border: none;
+        padding: 0.8rem 1.5rem;
+        font-size: 1rem;
+        border-radius: 50px;
+        cursor: pointer;
+        box-shadow: 0 4px 6px rgba(102, 126, 234, 0.3);
+        transition: all 0.2s;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    .audio-btn:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 6px 8px rgba(102, 126, 234, 0.4);
+    }
+
+    .audio-btn:active {
+        transform: scale(0.98);
+    }
+
+    .audio-btn-small {
+        padding: 0.5rem 1rem;
+        font-size: 0.9rem;
+    }
+
+    .complete-section {
+        text-align: center;
+        margin-top: 2rem;
+    }
+
+    .complete-btn {
+        background: #4caf50;
+        color: white;
+        border: none;
+        padding: 1rem 3rem;
+        font-size: 1.2rem;
+        border-radius: 50px;
+        cursor: pointer;
+        box-shadow: 0 4px 6px rgba(76, 175, 80, 0.3);
+        transition: all 0.2s;
+    }
+
+    .complete-btn:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 6px 8px rgba(76, 175, 80, 0.4);
+    }
+</style>
+
+<div class="problem-container">
+    <a href="{{ url_for('dashboard') }}" class="back-link">← ダッシュボードに戻る</a>
+
+    <h2>フラッシュカード</h2>
+
+    <!-- ナビゲーションバー -->
+    <div
+        style="display: flex; justify-content: space-between; align-items: center; background: #f5f5f5; padding: 0.75rem 1rem; border-radius: 8px; margin-bottom: 1rem;">
+        {% if nav.prev_id %}
+        <a href="{{ url_for('student_flashcard', assignment_id=nav.prev_id) }}"
+            style="padding: 0.5rem 1rem; background: #2196f3; color: white; border: none; border-radius: 6px; text-decoration: none; font-size: 0.9rem;">←
+            前のカード</a>
+        {% else %}
+        <span style="padding: 0.5rem 1rem; background: #ccc; color: white; border-radius: 6px; font-size: 0.9rem;">←
+            前のカード</span>
+        {% endif %}
+
+        <div style="display: flex; gap: 6px; align-items: center;">
+            {% for item in nav.group_items %}
+            <a href="{{ url_for('student_flashcard', assignment_id=item.id) }}"
+                style="width: 12px; height: 12px; border-radius: 50%; display: inline-block;
+                      {% if item.id == assignment.id %}background: #2196f3; transform: scale(1.3);{% elif item.teacher_feedback %}background: #ff9800;{% elif item.completed %}background: #4caf50;{% else %}background: #ddd;{% endif %}"
+                title="{{ item.flashcard.word }} {% if item.completed %}(完了){% endif %}{% if item.teacher_feedback %} - フィードバックあり{% endif %}">
+            </a>
+            {% endfor %}
+        </div>
+        <span style="font-weight: bold; color: #333; margin: 0 1rem;">{{ nav.current }} / {{ nav.total }}</span>
+
+        {% if nav.next_id %}
+        <a href="{{ url_for('student_flashcard', assignment_id=nav.next_id) }}"
+            style="padding: 0.5rem 1rem; background: #2196f3; color: white; border: none; border-radius: 6px; text-decoration: none; font-size: 0.9rem;">次のカード
+            →</a>
+        {% else %}
+        <span style="padding: 0.5rem 1rem; background: #ccc; color: white; border-radius: 6px; font-size: 0.9rem;">次のカード
+            →</span>
+        {% endif %}
+    </div>
+
+    {% if assignment.completed %}
+    <div class="completion-banner">
+        <h3>✅ 学習済み</h3>
+        <div class="completed-date">完了日: {{ assignment.completed_at|jst('%Y/%m/%d %H:%M') }}</div>
+
+        {% if assignment.teacher_feedback %}
+        <div class="teacher-feedback">
+            <h4>💬 先生からのフィードバック:</h4>
+            <div style="background: white; padding: 0.5rem; border-radius: 4px;">{{ assignment.teacher_feedback }}</div>
+        </div>
+        {% endif %}
+    </div>
+    {% endif %}
+
+    <!-- 音声ガイドボタン -->
+    <div class="audio-section">
+        <button type="button" class="audio-btn" onclick="speakWord()">
+            🔊 単語を読む
+        </button>
+        <button type="button" class="audio-btn" onclick="speakReading()">
+            🔊 読み方を聞く
+        </button>
+        <button type="button" class="audio-btn" onclick="speakExample()">
+            🔊 例文を読む
+        </button>
+    </div>
+
+    <div class="flashcard-container">
+        <div class="flashcard">
+            <div class="front">
+                <h1 class="card-word">{{ assignment.flashcard.word }}</h1>
+                <p class="tap-hint">タップして裏返す</p>
+            </div>
+            <div class="back">
+                <h2 class="card-reading">{{ assignment.flashcard.reading }}</h2>
+                <div class="card-meaning">{{ assignment.flashcard.meaning }}</div>
+                <div class="card-example">
+                    例: {{ assignment.flashcard.example }}
+                </div>
+                <button type="button" class="audio-btn audio-btn-small"
+                    onclick="event.stopPropagation(); speakReading();" style="margin-top: 1rem;">
+                    🔊 読み方
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <div class="complete-section">
+        <form method="POST">
+            <input type="hidden" name="action" value="complete">
+            <button type="submit" class="complete-btn" {% if assignment.completed
+                %}style="background: #ccc; color: #555;" {% endif %}>
+                {% if assignment.completed %}再学習済みとする{% else %}覚えた！{% endif %}
+            </button>
+        </form>
+    </div>
+
+    <!-- 下部ナビゲーション -->
+    <div
+        style="display: flex; justify-content: space-between; margin-top: 2rem; padding-top: 1rem; border-top: 1px solid #eee;">
+        {% if nav.prev_id %}
+        <a href="{{ url_for('student_flashcard', assignment_id=nav.prev_id) }}"
+            style="padding: 0.5rem 1rem; background: #2196f3; color: white; border: none; border-radius: 6px; text-decoration: none; font-size: 0.9rem;">←
+            前のカード</a>
+        {% else %}
+        <span style="padding: 0.5rem 1rem; background: #ccc; color: white; border-radius: 6px; font-size: 0.9rem;">←
+            前のカード</span>
+        {% endif %}
+
+        <a href="{{ url_for('dashboard') }}"
+            style="padding: 0.5rem 1rem; background: #666; color: white; border: none; border-radius: 6px; text-decoration: none; font-size: 0.9rem;">ダッシュボードに戻る</a>
+
+        {% if nav.next_id %}
+        <a href="{{ url_for('student_flashcard', assignment_id=nav.next_id) }}"
+            style="padding: 0.5rem 1rem; background: #2196f3; color: white; border: none; border-radius: 6px; text-decoration: none; font-size: 0.9rem;">次のカード
+            →</a>
+        {% else %}
+        <span style="padding: 0.5rem 1rem; background: #ccc; color: white; border-radius: 6px; font-size: 0.9rem;">次のカード
+            →</span>
+        {% endif %}
+    </div>
+</div>
+
+<script>
+    // フラッシュカードの反転
+    document.querySelector('.flashcard-container').addEventListener('click', function () {
+        this.querySelector('.flashcard').classList.toggle('flipped');
+    });
+
+    // 音声読み上げ機能
+    function speakText(text, lang = 'ja-JP') {
+        if ('speechSynthesis' in window) {
+            // 前の読み上げをキャンセル
+            speechSynthesis.cancel();
+
+            const utterance = new SpeechSynthesisUtterance(text);
+            utterance.lang = lang;
+            utterance.rate = 0.8; // ゆっくり読む
+            utterance.pitch = 1.0;
+            utterance.volume = 1.0;
+
+            // 日本語の音声を優先的に選択
+            const voices = speechSynthesis.getVoices();
+            const japaneseVoice = voices.find(v => v.lang.includes('ja'));
+            if (japaneseVoice) {
+                utterance.voice = japaneseVoice;
+            }
+
+            speechSynthesis.speak(utterance);
+        } else {
+            alert('お使いのブラウザは音声読み上げに対応していません');
+        }
+    }
+
+    function speakWord() {
+        const word = "{{ assignment.flashcard.word }}";
+        speakText(word);
+    }
+
+    function speakReading() {
+        const reading = "{{ assignment.flashcard.reading }}";
+        speakText(reading);
+    }
+
+    function speakExample() {
+        const example = "{{ assignment.flashcard.example | default('') }}";
+        if (example) {
+            speakText(example);
+        }
+    }
+
+    // 音声リストを事前にロード
+    if ('speechSynthesis' in window) {
+        speechSynthesis.getVoices();
+        speechSynthesis.onvoiceschanged = function () {
+            speechSynthesis.getVoices();
+        };
+    }
+</script>
+{% endblock %}

@@ -1,0 +1,112 @@
+{% extends "base.html" %}
+
+{% block title %}日本語学習 - 七夢学習アプリ{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1 class="page-title">🇯🇵 日本語学習</h1>
+</div>
+
+<!-- 学習統計 -->
+<div class="dashboard-grid" style="grid-template-columns: repeat(3, 1fr); margin-bottom: 24px;">
+    <div class="stat-card">
+        <div class="stat-icon">📝</div>
+        <div class="stat-value">{{ stats.total }}</div>
+        <div class="stat-label">総回答数</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-icon">✅</div>
+        <div class="stat-value">{{ stats.correct }}</div>
+        <div class="stat-label">正解数</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-icon">📊</div>
+        <div class="stat-value">{{ stats.accuracy }}%</div>
+        <div class="stat-label">正答率</div>
+    </div>
+</div>
+
+<!-- 先生からの課題（グループ化表示） -->
+{% if japanese_tasks %}
+<div class="card" style="border: 2px solid #e91e8c;">
+    <h2 class="card-title" style="color: #e91e8c;">📬 先生からの課題</h2>
+    <div class="problem-list">
+        {% for task in japanese_tasks %}
+        <a href="{% if task.type == 'quiz' or task.type == 'quiz_group' %}{{ url_for('student_quiz_assignment', assignment_id=task.assignment_id) }}{% elif task.type == 'flashcard' or task.type == 'flashcard_group' %}{{ url_for('student_flashcard', assignment_id=task.assignment_id) }}{% elif task.type == 'writing' or task.type == 'writing_group' %}{{ url_for('student_writing', assignment_id=task.assignment_id) }}{% else %}#{% endif %}"
+            class="problem-card" style="padding: 12px; text-decoration: none; display: block;">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+                <div>
+                    <strong style="font-size: 1.2rem;">{{ task.title }}</strong>
+                </div>
+                <div style="display: flex; gap: 8px; align-items: center;">
+                    {% if task.type == 'quiz' or task.type == 'quiz_group' %}
+                    <span class="status-badge" style="background: #e1bee7; color: #4a148c;">🎯 クイズ</span>
+                    {% elif task.type == 'flashcard' or task.type == 'flashcard_group' %}
+                    <span class="status-badge" style="background: #c5cae9; color: #1a237e;">📖 カード</span>
+                    {% elif task.type == 'writing' or task.type == 'writing_group' %}
+                    <span class="status-badge" style="background: #b2dfdb; color: #004d40;">✍️ 書き取り</span>
+                    {% endif %}
+
+                    {% if task.completed %}
+                    <span class="status-badge" style="background: #e8f5e9; color: #1b5e20;">✅ 完了</span>
+                    {% else %}
+                    <span class="status-badge"
+                        style="background: linear-gradient(135deg, #ff6b6b, #ff8e53); color: white; animation: pulse 1.5s infinite;">🆕
+                        未完了</span>
+                    {% endif %}
+                </div>
+            </div>
+            <div style="margin-top: 8px; color: var(--text-muted); font-size: 0.9rem;">
+                {{ task.created_at|jst('%m/%d %H:%M') }} 配信
+            </div>
+        </a>
+        {% endfor %}
+    </div>
+</div>
+{% else %}
+<div class="card">
+    <div class="empty-state">
+        <div class="empty-icon">📭</div>
+        <p>先生からの課題はまだありません</p>
+    </div>
+</div>
+{% endif %}
+
+<!-- 自習モード -->
+<div class="card">
+    <h2 class="card-title">🎮 自習モードを選ぼう</h2>
+    <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px;">
+        <a href="{{ url_for('japanese_quiz') }}" class="btn btn-primary"
+            style="text-decoration: none; text-align: center;">
+            🎯 熟語クイズ
+        </a>
+        <a href="{{ url_for('japanese_flashcard') }}" class="btn btn-secondary"
+            style="text-decoration: none; text-align: center;">
+            📖 フラッシュカード
+        </a>
+        <a href="{{ url_for('japanese_writing') }}" class="btn btn-secondary"
+            style="text-decoration: none; text-align: center; background: linear-gradient(135deg, #9c27b0, #7b1fa2);">
+            ✍️ 書き取り練習
+        </a>
+        <a href="{{ url_for('japanese_ai_tutor') }}" class="btn btn-success"
+            style="text-decoration: none; text-align: center;">
+            🤖 AIチューター
+        </a>
+    </div>
+</div>
+
+<style>
+    @keyframes pulse {
+
+        0%,
+        100% {
+            transform: scale(1);
+        }
+
+        50% {
+            transform: scale(1.05);
+        }
+    }
+</style>
+
+{% endblock %}

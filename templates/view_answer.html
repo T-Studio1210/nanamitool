@@ -1,0 +1,203 @@
+{% extends "base.html" %}
+
+{% block title %}回答確認 - 石川七夢講師専用学習アプリ{% endblock %}
+
+{% block content %}
+<div class="fade-in">
+    <div class="page-header">
+        <h1 class="page-title">{{ answer.student.display_name }}さんの回答</h1>
+        <a href="{{ url_for('view_problem', problem_id=answer.problem.id) }}" class="btn btn-secondary">← 問題に戻る</a>
+    </div>
+
+    <!-- 問題内容 -->
+    <div class="card" style="margin-bottom: 1.5rem;">
+        <h2 class="card-title">📋 問題: {{ answer.problem.title }}</h2>
+        <div class="editor-container" style="min-height: auto;">
+            <div class="ql-container ql-snow" style="border: none;">
+                <div class="ql-editor">{{ answer.problem.content|safe }}</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 生徒の回答 -->
+    <div class="card" style="margin-bottom: 1.5rem;">
+        <h2 class="card-title">📝 生徒の回答</h2>
+        <div class="editor-container" style="min-height: auto;">
+            <div class="ql-container ql-snow" style="border: none;">
+                <div class="ql-editor">
+                    {% if answer.problem.problem_type == 'mixed' %}
+                    <!-- 複合問題（回答埋め込み表示） -->
+                    <div id="mixed-answer-result-container">
+                        {{ answer.problem.content|safe }}
+                    </div>
+                    {% else %}
+                    {{ answer.content|safe }}
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+        <div style="margin-top: 1rem; color: var(--text-muted); font-size: 0.875rem;">
+            提出日: {{ answer.submitted_at|jst('%Y年%m月%d日 %H:%M') }}
+        </div>
+    </div>
+
+    <!-- フィードバック入力/表示 -->
+    <div class="card">
+        <h2 class="card-title">💬 フィードバック</h2>
+
+        {% if answer.feedback %}
+        <!-- 既存のフィードバック表示 -->
+        <div class="feedback-box" style="margin: 0;">
+            <div class="feedback-header" style="justify-content: space-between;">
+                <span>フィードバック内容</span>
+                {% if answer.feedback.score is not none %}
+                <span class="score-display">{{ answer.feedback.score }}点</span>
+                {% endif %}
+            </div>
+            <div class="feedback-content">{{ answer.feedback.content|safe }}</div>
+            <div style="margin-top: 0.75rem; color: var(--text-muted); font-size: 0.75rem;">
+                {{ answer.feedback.created_at|jst('%Y年%m月%d日 %H:%M') }}
+            </div>
+        </div>
+        <div style="margin-top: 1rem; text-align: right;">
+            <form method="POST" action="{{ url_for('delete_feedback', feedback_id=answer.feedback.id) }}"
+                style="display: inline;">
+                <button type="submit" class="btn btn-danger btn-sm" onclick="return confirmDelete('フィードバックを削除しますか？')">
+                    🗑️ フィードバックを削除
+                </button>
+            </form>
+        </div>
+        {% else %}
+        <!-- フィードバック入力フォーム -->
+        <form id="feedback-form" method="POST" action="{{ url_for('send_feedback', answer_id=answer.id) }}">
+            <div class="form-group">
+                <label class="form-label" for="score">点数（任意）</label>
+                <input type="number" id="score" name="score" class="form-input" min="0" max="100" placeholder="0-100"
+                    style="max-width: 150px;">
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">コメント</label>
+                <div class="editor-container">
+                    <div id="feedback-editor"></div>
+                </div>
+                <input type="hidden" id="feedback-content" name="content">
+            </div>
+
+            <div style="display: flex; justify-content: flex-end; margin-top: 1.5rem;">
+                <button type="submit" class="btn btn-success">📤 フィードバックを送信</button>
+            </div>
+        </form>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<style>
+    /* 複合問題用スタイル */
+    .mixed-option-label {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 12px 16px;
+        background: #fff;
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        margin-bottom: 8px;
+    }
+
+    .mixed-option-label.selected {
+        background: rgba(233, 30, 140, 0.05);
+        border-color: var(--primary);
+        font-weight: bold;
+        color: var(--primary);
+    }
+
+    .widget-replacement {
+        margin: 16px 0;
+        padding: 16px;
+        background: #fff;
+        border: 2px solid var(--primary);
+        border-radius: 12px;
+    }
+</style>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        // --- 複合問題 (Mixed: 回答表示) ---
+        {% if answer.problem.problem_type == 'mixed' %}
+        const viewContainer = document.getElementById('mixed-answer-result-container');
+        if (viewContainer) {
+            const viewWidgets = viewContainer.querySelectorAll('.question-widget');
+            let savedAnswers = [];
+            try {
+                savedAnswers = JSON.parse('{{ answer.content|replace("'", "\\'")|safe }}');
+            } catch (e) {
+                console.error('回答データのパースエラー:', e);
+            }
+
+            viewWidgets.forEach((widget, index) => {
+                const type = widget.dataset.widgetType;
+                const answerData = savedAnswers[index]; // インデックスで照合
+
+                // 説明文の取得 (あれば)
+                const descDiv = widget.querySelector('.widget-description');
+                const descriptionHtml = descDiv ? descDiv.outerHTML : '';
+
+                const replacement = document.createElement('div');
+                replacement.className = 'widget-replacement';
+                replacement.style.border = '2px solid #ccc'; // Readonly style
+                replacement.style.background = '#f9f9f9';
+
+                if (!answerData) {
+                    replacement.innerHTML = '<div style="color:red">回答データなし</div>';
+                    widget.replaceWith(replacement);
+                    return;
+                }
+
+                if (type === 'choice') {
+                    // 単一選択
+                    replacement.innerHTML = `
+                            ${descriptionHtml}
+                            <div class="mixed-option-label selected" style="pointer-events:none;">
+                                <span style="margin-right:8px;">✅</span> ${answerData.choice_text}
+                            </div>
+                        `;
+                } else if (type === 'checkbox') {
+                    // 複数選択
+                    let html = `${descriptionHtml}<div style="display:flex; flex-direction:column; gap:4px;">`;
+                    answerData.choice_text.forEach(txt => {
+                        html += `
+                            <div class="mixed-option-label selected" style="pointer-events:none;">
+                                <span style="margin-right:8px;">✅</span> ${txt}
+                            </div>`;
+                    });
+                    html += '</div>';
+                    replacement.innerHTML = html;
+                } else if (type === 'text') {
+                    // 記述
+                    const val = answerData.value ? answerData.value.replace(/\n/g, '<br>') : '(空欄)';
+                    replacement.innerHTML = `
+                            ${descriptionHtml}
+                            <div style="background:white; padding:12px; border-radius:4px; border:1px solid #ddd;">
+                                ${val}
+                            </div>
+                        `;
+                }
+                widget.replaceWith(replacement);
+            });
+        }
+        {% endif %}
+    });
+</script>
+
+{% if not answer.feedback %}
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        const quill = initEditor('feedback-editor');
+        setupEditorForm('feedback-form', quill, 'feedback-content');
+    });
+</script>
+{% endif %}
+{% endblock %}

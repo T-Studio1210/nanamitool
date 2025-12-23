@@ -1,0 +1,286 @@
+{% extends "base.html" %}
+
+{% block title %}漢字一覧 - 七夢学習アプリ{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1 class="page-title">📚 学年別漢字一覧</h1>
+    <a href="{{ url_for('teacher_japanese_problems') }}" class="btn btn-secondary btn-sm">← 戻る</a>
+</div>
+
+<!-- モード選択 -->
+<div class="card" style="margin-bottom: 16px; padding: 12px;">
+    <div style="display: flex; gap: 8px; flex-wrap: wrap; justify-content: center;">
+        <a href="{{ url_for('teacher_kanji_list') }}" class="btn btn-primary btn-sm">📚 漢字一覧</a>
+        <a href="{{ url_for('teacher_japanese_problems') }}" class="btn btn-secondary btn-sm">🎯 熟語クイズ</a>
+        <a href="{{ url_for('teacher_flashcard_manage') }}" class="btn btn-secondary btn-sm">📖 フラッシュカード</a>
+        <a href="{{ url_for('teacher_writing_manage') }}" class="btn btn-secondary btn-sm">✍️ 書き取り</a>
+        <a href="{{ url_for('teacher_japanese_send') }}" class="btn btn-secondary btn-sm">📤 生徒に配信</a>
+    </div>
+</div>
+
+<!-- 選択した漢字表示エリア -->
+<div class="card" id="selected-kanji-card" style="display: none;">
+    <h2 class="card-title">✏️ 選択した漢字 <span id="selected-count">(0字)</span></h2>
+    <div id="selected-kanji-list"
+        style="font-size: 1.5rem; line-height: 2; letter-spacing: 0.3em; margin-bottom: 16px;"></div>
+    <div style="display: flex; gap: 12px; flex-wrap: wrap;">
+        <button type="button" class="btn btn-primary" onclick="generateProblems()">
+            ✨ AIで問題を生成
+        </button>
+        <button type="button" class="btn btn-secondary" onclick="clearSelection()">
+            🗑️ 選択をクリア
+        </button>
+    </div>
+</div>
+
+<!-- 学年タブ -->
+<div class="card">
+    <div style="display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 16px;">
+        {% for grade_code, grade_name in grades %}
+        <button type="button"
+            class="btn {% if grade_code == current_grade %}btn-primary{% else %}btn-secondary{% endif %} btn-sm grade-tab"
+            data-grade="{{ grade_code }}" onclick="switchGrade('{{ grade_code }}')">
+            {{ grade_name }} ({{ kanji_counts[grade_code] }}字)
+        </button>
+        {% endfor %}
+    </div>
+
+    <!-- 検索ボックス -->
+    <div style="margin-bottom: 16px;">
+        <div style="display: flex; gap: 8px; flex-wrap: wrap; align-items: center;">
+            <input type="text" id="kanji-search" class="form-input" placeholder="🔍 漢字・読み方・意味で検索... (Enterで検索)"
+                style="flex: 1; min-width: 200px; max-width: 400px;" onkeydown="handleSearchKey(event)"
+                value="{{ search_query or '' }}">
+            <button type="button" class="btn btn-primary btn-sm" onclick="performSearch()">検索</button>
+            <button type="button" class="btn btn-secondary btn-sm" onclick="clearSearch()">クリア</button>
+            <span id="search-result-count" style="color: var(--text-muted); font-size: 0.85rem;"></span>
+        </div>
+    </div>
+
+    <h2 class="card-title" id="grade-title">{{ current_grade_name }} の漢字</h2>
+
+    <!-- 漢字グリッド -->
+    <div id="kanji-grid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(50px, 1fr)); gap: 8px;">
+        {% for kanji in kanji_list %}
+        <button type="button" class="kanji-btn" data-kanji="{{ kanji.kanji }}" data-reading="{{ kanji.reading or '' }}"
+            data-meaning="{{ kanji.meaning or '' }}" onclick="toggleKanji(this, '{{ kanji.kanji }}')">
+            {{ kanji.kanji }}
+        </button>
+        {% endfor %}
+    </div>
+
+    {% if not kanji_list %}
+    <p style="color: var(--text-muted); text-align: center; padding: 40px;">
+        この学年の漢字データがまだありません。<br>
+        シードスクリプトを実行してデータを投入してください。
+    </p>
+    {% endif %}
+</div>
+
+<!-- AI問題生成モーダル -->
+<div id="generate-modal"
+    style="display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.7); z-index: 1000; align-items: center; justify-content: center;">
+    <div class="card" style="max-width: 500px; width: 90%; max-height: 90vh; overflow-y: auto;">
+        <h2 class="card-title">✨ AI問題生成</h2>
+        <form id="generate-form" method="POST" action="{{ url_for('teacher_kanji_generate') }}">
+            <input type="hidden" name="selected_kanji" id="selected-kanji-input">
+
+            <div class="form-group">
+                <label class="form-label">選択した漢字</label>
+                <div id="modal-selected-kanji"
+                    style="font-size: 1.3rem; letter-spacing: 0.2em; background: var(--bg-hover); padding: 12px; border-radius: 8px;">
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">問題タイプ</label>
+                <div style="display: flex; flex-direction: column; gap: 8px;">
+                    <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                        <input type="radio" name="problem_type" value="quiz" checked> 📝 読み方クイズ
+                    </label>
+                    <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                        <input type="radio" name="problem_type" value="flashcard"> 🃏 フラッシュカード
+                    </label>
+                    <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                        <input type="radio" name="problem_type" value="writing"> ✏️ 書き取り練習
+                    </label>
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">生成数</label>
+                <select name="count" class="form-input">
+                    <option value="3">3問</option>
+                    <option value="5" selected>5問</option>
+                    <option value="10">10問</option>
+                    <option value="all">選択した全ての漢字</option>
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label
+                    style="display: flex; align-items: center; gap: 8px; cursor: pointer; padding: 12px; background: var(--bg-hover); border-radius: 8px;">
+                    <input type="checkbox" name="send_immediately" value="1" style="width: 20px; height: 20px;">
+                    <span>📤 生成後すぐに全生徒に配信する</span>
+                </label>
+            </div>
+
+            <div style="display: flex; gap: 12px; margin-top: 20px;">
+                <button type="submit" class="btn btn-primary">
+                    ✨ 生成する
+                </button>
+                <button type="button" class="btn btn-secondary" onclick="closeModal()">
+                    キャンセル
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<style>
+    .kanji-btn {
+        width: 50px;
+        height: 50px;
+        font-size: 1.5rem;
+        border: 2px solid var(--border);
+        background: var(--bg-card);
+        color: var(--text-primary);
+        border-radius: 8px;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .kanji-btn:hover {
+        background: var(--bg-hover);
+        transform: scale(1.1);
+    }
+
+    .kanji-btn.selected {
+        background: var(--primary);
+        color: white;
+        border-color: var(--primary);
+    }
+
+    .grade-tab {
+        font-size: 0.85rem;
+    }
+</style>
+
+<script>
+    // 選択された漢字を管理
+    let selectedKanji = new Set();
+
+    function toggleKanji(btn, kanji) {
+        if (selectedKanji.has(kanji)) {
+            selectedKanji.delete(kanji);
+            btn.classList.remove('selected');
+        } else {
+            selectedKanji.add(kanji);
+            btn.classList.add('selected');
+        }
+        updateSelectedDisplay();
+    }
+
+    function updateSelectedDisplay() {
+        const card = document.getElementById('selected-kanji-card');
+        const list = document.getElementById('selected-kanji-list');
+        const countSpan = document.getElementById('selected-count');
+
+        if (selectedKanji.size > 0) {
+            card.style.display = 'block';
+            list.textContent = Array.from(selectedKanji).join('');
+            countSpan.textContent = `(${selectedKanji.size}字)`;
+        } else {
+            card.style.display = 'none';
+        }
+    }
+
+    function clearSelection() {
+        selectedKanji.clear();
+        document.querySelectorAll('.kanji-btn.selected').forEach(btn => {
+            btn.classList.remove('selected');
+        });
+        updateSelectedDisplay();
+    }
+
+    // 検索機能
+    function performSearch() {
+        const query = document.getElementById('kanji-search').value.trim();
+        if (query) {
+            window.location.href = `/teacher/kanji?q=${encodeURIComponent(query)}`;
+        } else {
+            window.location.href = `/teacher/kanji`;
+        }
+    }
+
+    function handleSearchKey(event) {
+        if (event.key === 'Enter') {
+            performSearch();
+        }
+    }
+
+    function clearSearch() {
+        document.getElementById('kanji-search').value = '';
+        window.location.href = `/teacher/kanji`;
+    }
+
+    function switchGrade(gradeCode) {
+        // 選択を保持したまま別学年に切り替え
+        window.location.href = `/teacher/kanji?grade=${gradeCode}`;
+    }
+
+    function generateProblems() {
+        if (selectedKanji.size === 0) {
+            alert('漢字を選択してください');
+            return;
+        }
+
+        document.getElementById('selected-kanji-input').value = Array.from(selectedKanji).join('');
+        document.getElementById('modal-selected-kanji').textContent = Array.from(selectedKanji).join(' ');
+        document.getElementById('generate-modal').style.display = 'flex';
+    }
+
+    function closeModal() {
+        document.getElementById('generate-modal').style.display = 'none';
+    }
+
+    // モーダル外クリックで閉じる
+    document.getElementById('generate-modal').addEventListener('click', function (e) {
+        if (e.target === this) {
+            closeModal();
+        }
+    });
+
+    // セッションストレージから選択を復元
+    document.addEventListener('DOMContentLoaded', function () {
+        const saved = sessionStorage.getItem('selectedKanji');
+        if (saved) {
+            const savedSet = new Set(JSON.parse(saved));
+            document.querySelectorAll('.kanji-btn').forEach(btn => {
+                const kanji = btn.dataset.kanji;
+                if (savedSet.has(kanji)) {
+                    selectedKanji.add(kanji);
+                    btn.classList.add('selected');
+                }
+            });
+            updateSelectedDisplay();
+        }
+    });
+
+    // 選択をセッションストレージに保存
+    window.addEventListener('beforeunload', function () {
+        sessionStorage.setItem('selectedKanji', JSON.stringify(Array.from(selectedKanji)));
+    });
+
+    // フォーム送信時
+    document.getElementById('generate-form').addEventListener('submit', function () {
+        const btn = this.querySelector('button[type="submit"]');
+        btn.disabled = true;
+        btn.innerHTML = '⏳ 生成中...';
+    });
+</script>
+{% endblock %}

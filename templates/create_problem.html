@@ -1,0 +1,1182 @@
+{% extends "base.html" %}
+
+{% block title %}問題作成 - 七夢学習{% endblock %}
+
+{% block head %}
+<style>
+    /* 全画面モード */
+    .fullscreen-mode {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        z-index: 1000;
+        background: white;
+        display: flex;
+        flex-direction: column;
+    }
+
+    .fullscreen-mode .editor-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 12px 16px;
+        background: var(--bg-card);
+        border-bottom: 1px solid var(--border);
+    }
+
+    .fullscreen-mode .editor-body {
+        flex: 1;
+        overflow: auto;
+        padding: 16px;
+    }
+
+    .fullscreen-mode .ql-editor {
+        min-height: calc(100vh - 200px);
+    }
+
+    /* ツールバー */
+    .quick-tools {
+        display: flex;
+        gap: 8px;
+        margin-bottom: 12px;
+        flex-wrap: wrap;
+        align-items: center;
+    }
+
+    .quick-tool {
+        padding: 8px 14px;
+        border-radius: 20px;
+        background: var(--bg-card);
+        border: 1px solid var(--border);
+        color: var(--text-primary);
+        font-size: 0.85rem;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+    }
+
+    .quick-tool:hover {
+        background: var(--bg-hover);
+    }
+
+    .quick-tool.primary-action {
+        border-color: var(--primary);
+        color: var(--primary);
+        font-weight: 600;
+        background: rgba(233, 30, 140, 0.05);
+    }
+
+    /* 過去問題アイテム */
+    .past-problem-item {
+        padding: 12px;
+        background: var(--bg-hover);
+        border: 1px solid var(--border);
+        border-radius: var(--radius-sm);
+        margin-bottom: 8px;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+
+    .past-problem-item:hover {
+        border-color: var(--primary);
+        background: rgba(233, 30, 140, 0.05);
+    }
+
+    .past-problem-item:active {
+        transform: scale(0.98);
+    }
+
+    /* エディタ内ウィジェット */
+    .question-widget {
+        border: 2px solid var(--primary);
+        background: #f8f9fa;
+        padding: 10px;
+        margin: 10px 0;
+        border-radius: 8px;
+        user-select: none;
+    }
+
+    .question-widget .widget-header {
+        font-weight: bold;
+        color: var(--primary);
+        margin-bottom: 5px;
+        border-bottom: 1px solid #ddd;
+        padding-bottom: 5px;
+    }
+
+    /* モーダル */
+    .modal-overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(0, 0, 0, 0.5);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 2000;
+        opacity: 0;
+        pointer-events: none;
+        transition: opacity 0.2s;
+    }
+
+    .modal-overlay.active {
+        opacity: 1;
+        pointer-events: auto;
+    }
+
+    .modal-content {
+        background: white;
+        padding: 24px;
+        border-radius: 12px;
+        width: 100%;
+        max-width: 500px;
+        max-height: 80vh;
+        overflow-y: auto;
+    }
+
+    .choice-row {
+        display: flex;
+        gap: 8px;
+        margin-bottom: 8px;
+        align-items: center;
+    }
+
+    .choice-row input[type="text"] {
+        flex: 1;
+        padding: 8px;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+    }
+
+    .remove-choice-btn {
+        background: #ff4444;
+        color: white;
+        border: none;
+        width: 24px;
+        height: 24px;
+        border-radius: 50%;
+        cursor: pointer;
+        font-size: 14px;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="fade-in">
+    <div class="page-header">
+        <h1 class="page-title">✏️ 問題作成 (ブロックエディタ)</h1>
+        <a href="{{ url_for('dashboard') }}" class="btn btn-secondary">キャンセル</a>
+    </div>
+
+    <div class="card">
+        <h2 class="card-title">📝 問題設定</h2>
+        <form id="create-problem-form" method="POST" action="{{ url_for('create_problem') }}">
+            <div class="form-group">
+                <label class="form-label" for="title">タイトル</label>
+                <input type="text" id="title" name="title" class="form-input" required placeholder="例: 数学I 第1章 復習テスト">
+            </div>
+
+            <div class="form-group">
+                <label class="form-label" for="deadline">提出期限 (任意)</label>
+                <input type="datetime-local" id="deadline" name="deadline" class="form-input">
+            </div>
+
+            <!-- 配信タイミング -->
+            <div class="form-group">
+                <label class="form-label">配信タイミング</label>
+                <div style="display: flex; gap: 1rem; flex-wrap: wrap;">
+                    <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                        <input type="radio" name="schedule_type" value="immediate" checked
+                            style="width: 18px; height: 18px;">
+                        <span>📤 今すぐ配信</span>
+                    </label>
+                    <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                        <input type="radio" name="schedule_type" value="scheduled" style="width: 18px; height: 18px;">
+                        <span>⏰ 予約配信</span>
+                    </label>
+                </div>
+                <div id="schedule-time-container" style="display: none; margin-top: 0.75rem;">
+                    <input type="datetime-local" id="scheduled_at" name="scheduled_at" class="form-input"
+                        style="max-width: 280px;">
+                </div>
+            </div>
+
+            <input type="hidden" id="content" name="content">
+            <input type="hidden" name="problem_type" value="mixed">
+
+            <hr style="margin: 2rem 0; border: 0; border-top: 1px solid var(--border);">
+
+            <h2 class="card-title">🧩 問題コンテンツ</h2>
+            <div id="form-blocks-container"
+                style="display: flex; flex-direction: column; gap: 24px; min-height: 200px; margin-bottom: 2rem;">
+                <!-- ここにブロックが追加されます -->
+                <div class="empty-placeholder"
+                    style="text-align: center; padding: 40px; color: var(--text-muted); border: 2px dashed var(--border); border-radius: 12px; background: #fafafa;">
+                    <div style="font-size: 3rem; margin-bottom: 1rem;">🏗️</div>
+                    <div>下のツールバーから要素を追加して問題を作成してください</div>
+                </div>
+            </div>
+
+            <!-- ツールバー (モバイル対応) -->
+            <div class="sticky-toolbar">
+                <div class="toolbar-row toolbar-row-1">
+                    <button type="button" class="toolbar-btn toolbar-btn-secondary" onclick="addTextBlock()">
+                        <span class="btn-icon">📝</span>
+                        <span class="btn-text">説明文</span>
+                    </button>
+                    <button type="button" class="toolbar-btn toolbar-btn-secondary" onclick="openPastProblemModal()">
+                        <span class="btn-icon">📚</span>
+                        <span class="btn-text">引用</span>
+                    </button>
+                </div>
+                <div class="toolbar-row toolbar-row-2">
+                    <button type="button" class="toolbar-btn toolbar-btn-primary" onclick="addWidgetBlock('choice')">
+                        <span class="btn-icon">🔴</span>
+                        <span class="btn-text">単一</span>
+                    </button>
+                    <button type="button" class="toolbar-btn toolbar-btn-primary" onclick="addWidgetBlock('checkbox')">
+                        <span class="btn-icon">☑️</span>
+                        <span class="btn-text">複数</span>
+                    </button>
+                    <button type="button" class="toolbar-btn toolbar-btn-primary" onclick="addWidgetBlock('text')">
+                        <span class="btn-icon">✏️</span>
+                        <span class="btn-text">記述</span>
+                    </button>
+                </div>
+            </div>
+            <style>
+                .sticky-toolbar {
+                    position: sticky;
+                    bottom: 16px;
+                    background: white;
+                    padding: 12px;
+                    border-radius: 16px;
+                    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+                    border: 1px solid var(--border);
+                    z-index: 100;
+                    margin: 0 auto;
+                    max-width: 500px;
+                }
+
+                .toolbar-row {
+                    display: flex;
+                    gap: 8px;
+                    justify-content: center;
+                }
+
+                .toolbar-row-1 {
+                    margin-bottom: 8px;
+                }
+
+                .toolbar-btn {
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    gap: 6px;
+                    padding: 10px 14px;
+                    border-radius: 12px;
+                    border: none;
+                    font-size: 0.85rem;
+                    font-weight: 500;
+                    cursor: pointer;
+                    transition: all 0.2s;
+                    flex: 1;
+                    min-width: 0;
+                }
+
+                .toolbar-btn-secondary {
+                    background: #f5f5f5;
+                    color: #333;
+                    border: 1px solid #ddd;
+                }
+
+                .toolbar-btn-secondary:hover {
+                    background: #eee;
+                }
+
+                .toolbar-btn-primary {
+                    background: linear-gradient(135deg, #e91e8c, #ff6b9d);
+                    color: white;
+                }
+
+                .toolbar-btn-primary:hover {
+                    transform: translateY(-1px);
+                    box-shadow: 0 4px 12px rgba(233, 30, 140, 0.3);
+                }
+
+                .btn-icon {
+                    font-size: 1.1rem;
+                }
+
+                /* PC: 1行で表示 */
+                @media (min-width: 600px) {
+                    .sticky-toolbar {
+                        max-width: 700px;
+                        padding: 16px 24px;
+                    }
+
+                    .toolbar-row {
+                        margin-bottom: 0 !important;
+                    }
+
+                    .sticky-toolbar {
+                        display: flex;
+                        gap: 12px;
+                        align-items: center;
+                    }
+
+                    .toolbar-row-1,
+                    .toolbar-row-2 {
+                        flex: 1;
+                    }
+
+                    .toolbar-btn {
+                        padding: 12px 16px;
+                    }
+                }
+
+                /* 極小画面: アイコンのみ */
+                @media (max-width: 360px) {
+                    .btn-text {
+                        display: none;
+                    }
+
+                    .toolbar-btn {
+                        padding: 12px;
+                        min-width: 48px;
+                    }
+
+                    .btn-icon {
+                        font-size: 1.3rem;
+                    }
+                }
+            </style>
+
+            <!-- 配信先 -->
+            <div class="card" style="margin-top: 3rem; background: var(--bg-primary);">
+                <h2 class="card-title">👥 配信先</h2>
+                {% if students %}
+                <label style="display: flex; align-items: center; gap: 8px; margin-bottom: 12px; cursor: pointer;">
+                    <input type="checkbox" id="select-all" style="width: 20px; height: 20px;">
+                    <span style="font-weight: 500;">全員を選択</span>
+                </label>
+                <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 8px;">
+                    {% for student in students %}
+                    <label
+                        style="display: flex; align-items: center; gap: 8px; padding: 10px; background: white; border-radius: var(--radius-sm); border: 1px solid var(--border); cursor: pointer;">
+                        <input type="checkbox" name="students" value="{{ student.id }}" class="student-check"
+                            style="width: 18px; height: 18px;">
+                        <span style="font-size: 0.9rem;">{{ student.display_name }}</span>
+                    </label>
+                    {% endfor %}
+                </div>
+                {% else %}
+                <div class="empty-state">
+                    <p>生徒がまだいません</p>
+                </div>
+                {% endif %}
+            </div>
+
+            <div style="text-align: right; margin-top: 2rem; padding-bottom: 4rem;">
+                <button type="submit" class="btn btn-success"
+                    style="padding: 12px 32px; font-size: 1.1rem; box-shadow: 0 4px 12px rgba(76, 175, 80, 0.3);">
+                    🚀 問題を作成・配信する
+                </button>
+            </div>
+        </form>
+    </div>
+
+    <!-- 問題データベースモーダル -->
+    <div id="past-problem-modal" class="modal-overlay">
+        <div class="modal-content" style="max-width: 600px;">
+            <div
+                style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem; border-bottom: 1px solid #eee; padding-bottom: 12px;">
+                <h3 style="margin:0;">📚 問題データベース</h3>
+                <button type="button" class="btn btn-secondary btn-sm" onclick="closePastProblemModal()">×</button>
+            </div>
+
+            {% if past_problems %}
+            <div style="max-height:60vh; overflow-y:auto;">
+                {% for p in past_problems %}
+                <div class="db-problem-item" data-problem-id="{{ p.id }}">
+                    <div class="db-problem-header">
+                        <div class="db-problem-info">
+                            <div class="db-problem-title">{{ p.title }}</div>
+                            <div class="db-problem-meta">
+                                📅 {{ p.created_at|jst('%Y/%m/%d %H:%M') }}
+                                {% if p.assigned_students|length > 0 %}
+                                ・👥 {{ p.assigned_students|length }}人
+                                {% endif %}
+                            </div>
+                        </div>
+                        <div class="db-problem-actions">
+                            <button type="button" class="db-action-btn db-action-insert"
+                                onclick="insertPastProblem('{{ p.id }}')" title="引用">
+                                📥
+                            </button>
+                            <a href="{{ url_for('edit_problem', problem_id=p.id) }}"
+                                class="db-action-btn db-action-edit" title="編集">
+                                ✏️
+                            </a>
+                            <button type="button" class="db-action-btn db-action-delete"
+                                onclick="deleteProblemFromModal({{ p.id }}, '{{ p.title|e }}')" title="削除">
+                                🗑️
+                            </button>
+                        </div>
+                    </div>
+                    <!-- コンテンツを隠し要素として持つ -->
+                    <div id="past-content-{{ p.id }}" style="display:none;">{{ p.content|safe }}</div>
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <div style="text-align:center; padding:2rem; color:#666;">
+                過去の問題が見つかりません。
+            </div>
+            {% endif %}
+
+            <div style="margin-top: 16px; padding-top: 12px; border-top: 1px solid #eee; text-align: center;">
+                <a href="{{ url_for('manage_problems') }}" class="btn btn-secondary btn-sm">📋 問題管理ページへ</a>
+            </div>
+        </div>
+    </div>
+
+    <style>
+        .db-problem-item {
+            padding: 12px;
+            background: #fafafa;
+            border: 1px solid #e0e0e0;
+            border-radius: 8px;
+            margin-bottom: 10px;
+            transition: all 0.2s;
+        }
+
+        .db-problem-item:hover {
+            background: #f0f0f0;
+            border-color: #ccc;
+        }
+
+        .db-problem-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .db-problem-info {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .db-problem-title {
+            font-weight: 600;
+            font-size: 0.95rem;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .db-problem-meta {
+            font-size: 0.75rem;
+            color: #888;
+            margin-top: 4px;
+        }
+
+        .db-problem-actions {
+            display: flex;
+            gap: 6px;
+            flex-shrink: 0;
+        }
+
+        .db-action-btn {
+            width: 36px;
+            height: 36px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 1rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s;
+            text-decoration: none;
+        }
+
+        .db-action-insert {
+            background: #e3f2fd;
+            color: #1976d2;
+        }
+
+        .db-action-insert:hover {
+            background: #bbdefb;
+        }
+
+        .db-action-edit {
+            background: #fff3e0;
+            color: #f57c00;
+        }
+
+        .db-action-edit:hover {
+            background: #ffe0b2;
+        }
+
+        .db-action-delete {
+            background: #ffebee;
+            color: #d32f2f;
+        }
+
+        .db-action-delete:hover {
+            background: #ffcdd2;
+        }
+    </style>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<style>
+    .content-block {
+        background: white;
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        padding: 20px;
+        position: relative;
+        transition: box-shadow 0.2s;
+    }
+
+    .content-block:hover {
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+    }
+
+    .block-controls {
+        position: absolute;
+        right: 10px;
+        top: 10px;
+        opacity: 0.3;
+        transition: opacity 0.2s;
+        display: flex;
+        gap: 8px;
+    }
+
+    .content-block:hover .block-controls {
+        opacity: 1;
+    }
+
+    .block-btn {
+        background: #f0f0f0;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+        width: 32px;
+        height: 32px;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.2rem;
+    }
+
+    .block-btn:hover {
+        background: #e0e0e0;
+        color: var(--danger);
+    }
+
+    .widget-preview {
+        background: #f8f9fa;
+        padding: 16px;
+        border-radius: 8px;
+        border: 1px dashed #ccc;
+        margin-top: 12px;
+    }
+
+    .choice-list {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        margin-top: 12px;
+    }
+
+    .choice-item {
+        display: flex;
+        gap: 8px;
+        align-items: center;
+    }
+
+    .choice-input {
+        flex: 1;
+        padding: 10px;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+        font-size: 1rem;
+    }
+
+    .widget-header-input {
+        width: 100%;
+        padding: 8px;
+        font-size: 1rem;
+        font-weight: bold;
+        color: var(--primary);
+        border: 1px solid transparent;
+        border-bottom: 1px solid #ddd;
+        margin-bottom: 8px;
+    }
+
+    .widget-header-input:focus {
+        border-color: var(--primary);
+        outline: none;
+    }
+</style>
+
+<script>
+    const container = document.getElementById('form-blocks-container');
+    let blockCount = 0;
+
+    // 初期化：何もない場合は案内を表示、追加されたら消す
+    const updateEmptyState = () => {
+        const placeholder = container.querySelector('.empty-placeholder');
+        if (placeholder) {
+            // ブロックが追加されたらプレースホルダーを非表示に
+            const hasBlocks = container.querySelectorAll('.content-block').length > 0;
+            placeholder.style.display = hasBlocks ? 'none' : 'block';
+        }
+    };
+
+    function createBlockWrapper(typeIcon, title) {
+        const div = document.createElement('div');
+        div.className = 'content-block';
+        div.innerHTML = `
+            <div style="font-weight:bold; color:var(--text-secondary); margin-bottom:12px; display:flex; align-items:center; gap:8px;">
+                <span>${typeIcon}</span> ${title}
+            </div>
+            <div class="block-content"></div>
+            <div class="block-controls">
+                <button type="button" class="block-btn" onclick="moveBlock(this, -1)" title="上へ">⬆️</button>
+                <button type="button" class="block-btn" onclick="moveBlock(this, 1)" title="下へ">⬇️</button>
+                <button type="button" class="block-btn" onclick="deleteBlock(this)" title="削除">🗑️</button>
+            </div>
+        `;
+        return div;
+    }
+
+    // テキスト(Word風)ブロック追加
+    window.addTextBlock = function () {
+        const wrapper = createBlockWrapper('📝', '説明文・問題文');
+        wrapper.dataset.type = 'text-block';
+
+        const editorId = `quill-${blockCount++}`;
+        const editorDiv = document.createElement('div');
+        editorDiv.id = editorId;
+        editorDiv.style.height = '150px';
+        editorDiv.style.background = 'white';
+        // 若干下のマージンを確保
+        editorDiv.style.marginBottom = '10px';
+
+        wrapper.querySelector('.block-content').appendChild(editorDiv);
+        container.appendChild(wrapper);
+        updateEmptyState();
+
+        // Quill初期化
+        new Quill(`#${editorId}`, {
+            theme: 'snow',
+            modules: {
+                toolbar: [
+                    [{ 'header': [1, 2, false] }],
+                    ['bold', 'italic', 'underline', 'strike'],
+                    [{ 'color': [] }, { 'background': [] }],
+                    [{ 'list': 'ordered' }, { 'list': 'bullet' }],
+                    ['link', 'image', 'clean']
+                ]
+            },
+            placeholder: 'ここに文章を入力...'
+        });
+
+        // スクロール
+        wrapper.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    };
+
+    // ウィジェットブロック追加
+    window.addWidgetBlock = function (type) {
+        let title = '';
+        let icon = '';
+        if (type === 'choice') { title = '選択問題 (単一選択)'; icon = '🔴'; }
+        if (type === 'checkbox') { title = '選択問題 (複数選択)'; icon = '☑️'; }
+        if (type === 'text') { title = '記述問題'; icon = '✏️'; }
+
+        const wrapper = createBlockWrapper(icon, title);
+        wrapper.dataset.type = 'widget';
+        wrapper.dataset.widgetType = type;
+
+        let contentHtml = '';
+        if (type === 'text') {
+            contentHtml = `
+                <div style="background:#f8f9fa; padding:16px; border-radius:8px;">
+                    <label style="font-weight:bold; display:block; margin-bottom:8px;">問題文・説明 (任意)</label>
+                    <textarea class="widget-description-input" placeholder="この解答欄に関する説明や問題文を入力..." style="width:100%; padding:8px; border:1px solid #ddd; border-radius:4px; margin-bottom:16px; min-height:60px;"></textarea>
+                    
+                    <div class="widget-preview">
+                        <div style="color:#666; font-size:0.9rem; margin-bottom:8px;">回答入力欄プレビュー:</div>
+                        <div style="background:#fff; padding:12px; border:2px solid #ccc; border-radius:4px; height:80px; color:#999; display:flex; align-items:center;">
+                            [ここに生徒が回答を入力する大きな枠が表示されます]
+                        </div>
+                    </div>
+                </div>
+            `;
+        } else {
+            contentHtml = `
+                <div style="background:#f8f9fa; padding:16px; border-radius:8px;">
+                     <label style="font-weight:bold; display:block; margin-bottom:8px;">問題文・説明 (任意)</label>
+                    <textarea class="widget-description-input" placeholder="この解答欄に関する説明や問題文を入力..." style="width:100%; padding:8px; border:1px solid #ddd; border-radius:4px; margin-bottom:16px; min-height:60px;"></textarea>
+
+                    <label style="font-weight:bold; display:block; margin-bottom:8px;">選択肢を設定</label>
+                    <div class="choice-list">
+                        <div class="choice-item">
+                            <input type="text" class="choice-input" placeholder="選択肢を入力..." value="はい" oninput="updateChoicesData(this)">
+                            <button type="button" class="btn btn-danger btn-sm" onclick="removeChoice(this)">×</button>
+                        </div>
+                        <div class="choice-item">
+                            <input type="text" class="choice-input" placeholder="選択肢を入力..." value="いいえ" oninput="updateChoicesData(this)">
+                            <button type="button" class="btn btn-danger btn-sm" onclick="removeChoice(this)">×</button>
+                        </div>
+                    </div>
+                    <button type="button" class="btn btn-secondary btn-sm" style="margin-top:12px;" onclick="addChoice(this)">＋ 選択肢を追加</button>
+                    
+                    <div class="widget-preview" style="margin-top:16px;">
+                        <div style="color:#666; font-size:0.9rem; margin-bottom:4px;">生徒側の表示プレビュー:</div>
+                        <div class="preview-area" style="display:flex; flex-direction:column; gap:4px;"></div>
+                    </div>
+                </div>
+            `;
+        }
+
+        wrapper.querySelector('.block-content').innerHTML = contentHtml;
+        container.appendChild(wrapper);
+        updateEmptyState();
+
+        if (type !== 'text') updatePreview(wrapper);
+        wrapper.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    };
+
+    // 選択肢操作
+    window.addChoice = function (btn) {
+        const list = btn.parentElement.querySelector('.choice-list');
+        const count = list.children.length + 1;
+        const div = document.createElement('div');
+        div.className = 'choice-item';
+        div.innerHTML = `
+            <input type="text" class="choice-input" placeholder="選択肢を入力..." oninput="updateChoicesData(this)">
+            <button type="button" class="btn btn-danger btn-sm" onclick="removeChoice(this)">×</button>
+        `;
+        list.appendChild(div);
+
+        // フォーカス
+        div.querySelector('input').focus();
+        updatePreview(btn.closest('.content-block'));
+    };
+
+    window.removeChoice = function (btn) {
+        const block = btn.closest('.content-block');
+        const list = btn.closest('.choice-list');
+        if (list.children.length > 1) {
+            btn.closest('.choice-item').remove();
+            updatePreview(block);
+        } else {
+            alert('選択肢は最低1つ必要です。');
+        }
+    };
+
+    window.updateChoicesData = function (input) {
+        updatePreview(input.closest('.content-block'));
+    };
+
+    function updatePreview(block) {
+        const type = block.dataset.widgetType;
+        const inputs = Array.from(block.querySelectorAll('.choice-input'));
+        const previewArea = block.querySelector('.preview-area');
+        if (!previewArea) return;
+
+        let html = '';
+        inputs.forEach(input => {
+            const val = input.value || '(空)';
+            // typeIcon
+            const mark = type === 'choice' ? '⭕' : '☑️';
+            html += `
+                <div style="padding:10px 16px; background:white; border:1px solid #ddd; border-radius:8px; display:flex; align-items:center; gap:10px;">
+                    <span style="font-size:1.2rem;">${mark}</span>
+                    <span style="font-weight:500;">${val}</span>
+                </div>
+            `;
+        });
+        previewArea.innerHTML = html;
+
+        // データ属性に保存
+        const choices = inputs.map(i => i.value).filter(v => v.trim() !== "");
+        block.dataset.choices = JSON.stringify(choices);
+    }
+
+    // ブロック操作
+    window.moveBlock = function (btn, dir) {
+        const block = btn.closest('.content-block');
+        if (dir === -1 && block.previousElementSibling && !block.previousElementSibling.classList.contains('empty-placeholder')) {
+            block.parentNode.insertBefore(block, block.previousElementSibling);
+            block.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        } else if (dir === 1 && block.nextElementSibling) {
+            block.parentNode.insertBefore(block.nextElementSibling, block);
+            block.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+    };
+
+    window.deleteBlock = function (btn) {
+        if (confirm('このブロックを削除してもよろしいですか？')) {
+            const block = btn.closest('.content-block');
+            block.classList.add('fade-out'); // アニメーションがあれば
+            block.remove();
+            updateEmptyState();
+        }
+    };
+
+    // 送信処理
+    document.getElementById('create-problem-form').addEventListener('submit', function (e) {
+        const blocks = container.querySelectorAll('.content-block');
+        let finalHtml = '';
+        let hasContent = false;
+
+        blocks.forEach(block => {
+            if (block.dataset.type === 'text-block') {
+                const editor = Quill.find(block.querySelector('.ql-container'));
+                const html = editor.root.innerHTML;
+                if (editor.getText().trim().length > 0 || html.includes('<img')) {
+                    finalHtml += `<div class="block-text" style="margin-bottom:1rem;">${html}</div>`;
+                    hasContent = true;
+                }
+
+            } else if (block.dataset.type === 'widget') {
+                const type = block.dataset.widgetType;
+                let widgetHtml = '';
+
+                if (type === 'text') {
+                    const description = block.querySelector('.widget-description-input')?.value || '';
+                    const safeDesc = description.replace(/"/g, '&quot;').replace(/\n/g, '<br>');
+
+                    widgetHtml = `
+                    <div class="question-widget" data-widget-type="text" contenteditable="false">
+                        <div class="widget-header">✏️ 記述回答欄</div>
+                         ${description ? `<div class="widget-description" style="margin-bottom:8px; font-weight:bold;">${safeDesc}</div>` : ''}
+                        <div class="widget-active-content">
+                            <div style="background:#fff; padding:12px; border:2px solid #ccc; border-radius:4px; height:60px; color:#999; display:flex; align-items:center;">[ここに生徒が回答を入力する枠が表示されます]</div>
+                        </div>
+                    </div>`;
+                    hasContent = true;
+                } else {
+                    const choices = block.dataset.choices || '[]';
+                    const safeChoices = choices.replace(/"/g, '&quot;');
+                    const displayChoices = JSON.parse(choices);
+                    const description = block.querySelector('.widget-description-input')?.value || '';
+                    const safeDesc = description.replace(/"/g, '&quot;').replace(/\n/g, '<br>');
+
+                    if (displayChoices.length === 0) return; // 選択肢がない場合はスキップ
+
+                    let previewList = '';
+                    displayChoices.forEach(c => {
+                        const mark = type === 'choice' ? '🔴' : '☑️';
+                        previewList += `<div style="display:flex; gap:8px; margin-top:4px;"><span style="color:var(--primary)">${mark}</span> ${c}</div>`;
+                    });
+
+                    const label = type === 'choice' ? '🔴 選択回答欄 (単一)' : '☑️ 選択回答欄 (複数)';
+
+                    widgetHtml = `
+                    <div class="question-widget" data-widget-type="${type}" data-choices="${safeChoices}" contenteditable="false">
+                        <div class="widget-header">${label}</div>
+                        ${description ? `<div class="widget-description" style="margin-bottom:8px; font-weight:bold;">${safeDesc}</div>` : ''}
+                        <div class="widget-active-content">
+                            ${previewList}
+                        </div>
+                    </div>`;
+                    hasContent = true;
+                }
+                finalHtml += `<div class="block-widget" style="margin: 1.5rem 0;">${widgetHtml}</div>`;
+            }
+        });
+
+        if (!hasContent) {
+            e.preventDefault();
+            alert('問題の中身が空です。文章や回答欄を追加してください。');
+            return;
+        }
+
+        // 二重送信防止
+        const submitBtn = document.querySelector('#create-problem-form button[type="submit"]');
+        if (submitBtn.disabled) {
+            e.preventDefault();
+            return;
+        }
+        submitBtn.disabled = true;
+        submitBtn.textContent = '送信中...';
+
+        document.getElementById('content').value = finalHtml;
+    });
+
+    // --- 過去問引用ロジック ---
+    function openPastProblemModal() {
+        document.getElementById('past-problem-modal').classList.add('active');
+    }
+
+    function closePastProblemModal() {
+        document.getElementById('past-problem-modal').classList.remove('active');
+    }
+
+    // モーダルから問題を削除
+    window.deleteProblemFromModal = async function (problemId, title) {
+        if (!confirm(`「${title}」を削除しますか？\n\n※ この操作は取り消せません。関連するすべての回答も削除されます。`)) {
+            return;
+        }
+
+        try {
+            const formData = new FormData();
+            const response = await fetch(`/problem/${problemId}/delete`, {
+                method: 'POST',
+                body: formData
+            });
+
+            if (response.ok) {
+                // UIから削除
+                const item = document.querySelector(`.db-problem-item[data-problem-id="${problemId}"]`);
+                if (item) {
+                    item.style.transition = 'all 0.3s';
+                    item.style.opacity = '0';
+                    item.style.transform = 'translateX(-20px)';
+                    setTimeout(() => item.remove(), 300);
+                }
+                alert('問題を削除しました。');
+            } else {
+                alert('削除に失敗しました。');
+            }
+        } catch (e) {
+            console.error('削除エラー:', e);
+            alert('削除に失敗しました。');
+        }
+    };
+
+    window.insertPastProblem = function (id) {
+        const contentDiv = document.getElementById(`past-content-${id}`);
+        if (!contentDiv) return;
+
+        const htmlContent = contentDiv.innerHTML;
+        parseAndInsert(htmlContent);
+        closePastProblemModal();
+
+        // スクロールを一番下へ
+        setTimeout(() => {
+            window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
+        }, 100);
+    };
+
+    function parseAndInsert(htmlContent) {
+        const tempDiv = document.createElement('div');
+        tempDiv.innerHTML = htmlContent;
+
+        // 子要素を走査してブロック化
+        const childNodes = Array.from(tempDiv.childNodes);
+        let buffer = document.createElement('div');
+
+        const flushBuffer = () => {
+            if (buffer.innerHTML.trim() !== '' && buffer.innerText.trim() !== '') {
+                // テキストブロックとして追加
+                // initTextBlockはwindowオブジェクトにないので直接実装呼び出しが必要、
+                // またはaddTextBlockを少し改造してcontentを受け取れるようにする
+                addTextBlockWithContent(buffer.innerHTML);
+            } else if (buffer.querySelector('img')) {
+                addTextBlockWithContent(buffer.innerHTML);
+            }
+            buffer = document.createElement('div'); // Reset
+        };
+
+        childNodes.forEach(node => {
+            if (node.nodeType === Node.ELEMENT_NODE && (node.classList.contains('question-widget') || (node.querySelector && node.querySelector('.question-widget')))) {
+                flushBuffer();
+                let widget = node.classList.contains('question-widget') ? node : node.querySelector('.question-widget');
+
+                if (widget) {
+                    const type = widget.dataset.widgetType;
+                    const choices = JSON.parse(widget.dataset.choices || '[]');
+                    // 説明文の抽出
+                    const descDiv = widget.querySelector('.widget-description');
+                    let description = '';
+                    if (descDiv) {
+                        description = descDiv.innerHTML.replace(/<br\s*\/?>/gi, '\n');
+                        const txt = document.createElement('textarea');
+                        txt.innerHTML = description;
+                        description = txt.value;
+                    }
+                    // initWidgetBlock相当の処理
+                    addWidgetBlock(type, choices, description);
+                }
+            } else if (node.nodeType === Node.ELEMENT_NODE && node.classList.contains('block-widget')) {
+                flushBuffer();
+                let widget = node.querySelector('.question-widget');
+                if (widget) {
+                    const type = widget.dataset.widgetType;
+                    const choices = JSON.parse(widget.dataset.choices || '[]');
+                    const descDiv = widget.querySelector('.widget-description');
+                    let description = '';
+                    if (descDiv) {
+                        description = descDiv.innerHTML.replace(/<br\s*\/?>/gi, '\n');
+                        const txt = document.createElement('textarea');
+                        txt.innerHTML = description;
+                        description = txt.value;
+                    }
+                    addWidgetBlock(type, choices, description);
+                }
+            } else if (node.nodeType === Node.ELEMENT_NODE && node.classList.contains('block-text')) {
+                flushBuffer();
+                addTextBlockWithContent(node.innerHTML);
+            } else {
+                buffer.appendChild(node.cloneNode(true));
+            }
+        });
+        flushBuffer();
+    }
+
+    // テキストブロック追加（内容指定版）
+    function addTextBlockWithContent(initialContent) {
+        const wrapper = createBlockWrapper('📝', '説明文・問題文');
+        wrapper.dataset.type = 'text-block';
+
+        const editorId = `quill-${blockCount++}`;
+        const editorDiv = document.createElement('div');
+        editorDiv.id = editorId;
+        editorDiv.style.height = '150px';
+        editorDiv.style.background = 'white';
+        editorDiv.style.marginBottom = '10px';
+        editorDiv.innerHTML = initialContent; // 初期コンテンツ
+
+        wrapper.querySelector('.block-content').appendChild(editorDiv);
+        container.appendChild(wrapper);
+        updateEmptyState();
+
+        new Quill(`#${editorId}`, {
+            theme: 'snow',
+            modules: {
+                toolbar: [
+                    [{ 'header': [1, 2, false] }],
+                    ['bold', 'italic', 'underline', 'strike'],
+                    [{ 'color': [] }, { 'background': [] }],
+                    [{ 'list': 'ordered' }, { 'list': 'bullet' }],
+                    ['link', 'image', 'clean']
+                ]
+            },
+            placeholder: 'ここに文章を入力...'
+        });
+    }
+
+    // addWidgetBlockの拡張 (引数を受け取れるようにする)
+    // 既存の window.addWidgetBlock を上書き
+    const originalAddWidgetBlock = window.addWidgetBlock;
+    window.addWidgetBlock = function (type, choices = null, description = null) {
+        // nullならデフォルト値を使用 (新規作成時)
+        if (!choices) {
+            if (type === 'choice' || type === 'checkbox') choices = ['はい', 'いいえ'];
+            else choices = [];
+        }
+        if (description === null) description = '';
+
+        // 以下、元のロジックを再利用したいが、initWidgetBlockとして分離されていないため、再実装する形になる。
+        // DRYのために既存の関数の中身をここに移設して統合するのがベストだが、
+        // 今回は既存関数を置き換える形で実装する。
+
+        let title = '';
+        let icon = '';
+        if (type === 'choice') { title = '選択問題 (単一選択)'; icon = '🔴'; }
+        if (type === 'checkbox') { title = '選択問題 (複数選択)'; icon = '☑️'; }
+        if (type === 'text') { title = '記述問題'; icon = '✏️'; }
+
+        const wrapper = createBlockWrapper(icon, title);
+        wrapper.dataset.type = 'widget';
+        wrapper.dataset.widgetType = type;
+
+        let contentHtml = '';
+        if (type === 'text') {
+            contentHtml = `
+                <div style="background:#f8f9fa; padding:16px; border-radius:8px;">
+                    <label style="font-weight:bold; display:block; margin-bottom:8px;">問題文・説明 (任意)</label>
+                    <textarea class="widget-description-input" placeholder="この解答欄に関する説明や問題文を入力..." style="width:100%; padding:8px; border:1px solid #ddd; border-radius:4px; margin-bottom:16px; min-height:60px;">${description}</textarea>
+                    
+                    <div class="widget-preview">
+                        <div style="color:#666; font-size:0.9rem; margin-bottom:8px;">回答入力欄プレビュー:</div>
+                        <div style="background:#fff; padding:12px; border:2px solid #ccc; border-radius:4px; height:80px; color:#999; display:flex; align-items:center;">
+                            [ここに生徒が回答を入力する大きな枠が表示されます]
+                        </div>
+                    </div>
+                </div>
+            `;
+        } else {
+            let choiceItems = '';
+            choices.forEach((c) => {
+                choiceItems += `
+                <div class="choice-item">
+                    <input type="text" class="choice-input" placeholder="選択肢を入力..." value="${c}" oninput="updateChoicesData(this)">
+                    <button type="button" class="btn btn-danger btn-sm" onclick="removeChoice(this)">×</button>
+                </div>`;
+            });
+
+            contentHtml = `
+                <div style="background:#f8f9fa; padding:16px; border-radius:8px;">
+                     <label style="font-weight:bold; display:block; margin-bottom:8px;">問題文・説明 (任意)</label>
+                    <textarea class="widget-description-input" placeholder="この解答欄に関する説明や問題文を入力..." style="width:100%; padding:8px; border:1px solid #ddd; border-radius:4px; margin-bottom:16px; min-height:60px;">${description}</textarea>
+
+                    <label style="font-weight:bold; display:block; margin-bottom:8px;">選択肢を設定</label>
+                    <div class="choice-list">
+                        ${choiceItems}
+                    </div>
+                    <button type="button" class="btn btn-secondary btn-sm" style="margin-top:12px;" onclick="addChoice(this)">＋ 選択肢を追加</button>
+                    
+                    <div class="widget-preview" style="margin-top:16px;">
+                        <div style="color:#666; font-size:0.9rem; margin-bottom:4px;">生徒側の表示プレビュー:</div>
+                        <div class="preview-area" style="display:flex; flex-direction:column; gap:4px;"></div>
+                    </div>
+                </div>
+            `;
+        }
+
+        wrapper.querySelector('.block-content').innerHTML = contentHtml;
+        container.appendChild(wrapper);
+        updateEmptyState();
+
+        if (type !== 'text') updatePreview(wrapper);
+        wrapper.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    };
+
+
+
+    // 初期状態チェック
+    document.addEventListener('DOMContentLoaded', () => {
+        updateEmptyState();
+
+        // --- 配信タイミング切り替え ---
+        const scheduleRadios = document.querySelectorAll('input[name="schedule_type"]');
+        const scheduleContainer = document.getElementById('schedule-time-container');
+
+        scheduleRadios.forEach(radio => {
+            radio.addEventListener('change', function () {
+                if (this.value === 'scheduled') {
+                    scheduleContainer.style.display = 'block';
+                } else {
+                    scheduleContainer.style.display = 'none';
+                }
+            });
+        });
+
+        // --- 全員選択チェックボックス ---
+        const selectAll = document.getElementById('select-all');
+        const studentChecks = document.querySelectorAll('.student-check');
+
+        if (selectAll) {
+            selectAll.addEventListener('change', function () {
+                studentChecks.forEach(cb => cb.checked = this.checked);
+            });
+        }
+    });
+</script>
+{% endblock %}

@@ -1,0 +1,240 @@
+{% extends "base.html" %}
+
+{% block title %}問題配信 - 七夢学習アプリ{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1 class="page-title">📤 日本語問題を配信</h1>
+    <a href="{{ url_for('teacher_japanese_problems') }}" class="btn btn-secondary btn-sm">← 戻る</a>
+</div>
+
+<div class="card">
+    <h2 class="card-title">📦 配信する問題を選択（複数タイプ可）</h2>
+
+    <form method="POST" action="{{ url_for('send_japanese_quiz') }}">
+        <!-- タブ切り替え -->
+        <div style="margin-bottom: 20px; border-bottom: 2px solid #eee; display: flex; gap: 0;">
+            <button type="button" class="content-tab active" onclick="switchContentTab('quizzes')"
+                style="background: none; border: none; padding: 12px 20px; font-size: 1rem; font-weight: bold; cursor: pointer; border-bottom: 3px solid #e91e8c; color: #e91e8c;">
+                🎯 クイズ ({{ quizzes|length }})
+            </button>
+            <button type="button" class="content-tab" onclick="switchContentTab('flashcards')"
+                style="background: none; border: none; padding: 12px 20px; font-size: 1rem; font-weight: bold; cursor: pointer; border-bottom: 3px solid transparent; color: #888;">
+                📖 フラッシュカード ({{ flashcards|length }})
+            </button>
+            <button type="button" class="content-tab" onclick="switchContentTab('writings')"
+                style="background: none; border: none; padding: 12px 20px; font-size: 1rem; font-weight: bold; cursor: pointer; border-bottom: 3px solid transparent; color: #888;">
+                ✍️ 書き取り ({{ writings|length }})
+            </button>
+        </div>
+
+        <!-- クイズ一覧 -->
+        <div id="tab-quizzes" class="content-panel">
+            <div class="form-group">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                    <label class="form-label" style="margin: 0;">🎯 熟語クイズ</label>
+                    <button type="button" class="btn btn-secondary btn-sm" onclick="selectAll('quiz_ids')">全選択</button>
+                </div>
+                <div
+                    style="max-height: 250px; overflow-y: auto; border: 1px solid var(--border); border-radius: 8px; padding: 12px;">
+                    {% for quiz in quizzes %}
+                    <label
+                        style="display: flex; align-items: center; gap: 10px; padding: 8px; cursor: pointer; border-bottom: 1px solid var(--border);">
+                        <input type="checkbox" name="quiz_ids" value="{{ quiz.id }}" style="width: 20px; height: 20px;">
+                        <strong style="font-size: 1.2rem;">{{ quiz.word }}</strong>
+                        <span style="color: var(--text-muted);">（{{ quiz.correct_reading }}）</span>
+                        <span style="color: var(--text-secondary); font-size: 0.9rem;">🇨🇳 {{ quiz.meaning_chinese
+                            }}</span>
+                    </label>
+                    {% endfor %}
+                    {% if not quizzes %}
+                    <p style="text-align: center; color: var(--text-muted); padding: 20px;">
+                        クイズがありません。<a href="{{ url_for('teacher_japanese_generate') }}">AIで問題を生成</a>してください。
+                    </p>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <!-- フラッシュカード一覧 -->
+        <div id="tab-flashcards" class="content-panel" style="display: none;">
+            <div class="form-group">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                    <label class="form-label" style="margin: 0;">📖 フラッシュカード</label>
+                    <button type="button" class="btn btn-secondary btn-sm"
+                        onclick="selectAll('flashcard_ids')">全選択</button>
+                </div>
+                <div
+                    style="max-height: 250px; overflow-y: auto; border: 1px solid var(--border); border-radius: 8px; padding: 12px;">
+                    {% for card in flashcards %}
+                    <label
+                        style="display: flex; align-items: center; gap: 10px; padding: 8px; cursor: pointer; border-bottom: 1px solid var(--border);">
+                        <input type="checkbox" name="flashcard_ids" value="{{ card.id }}"
+                            style="width: 20px; height: 20px;">
+                        <strong style="font-size: 1.2rem;">{{ card.word }}</strong>
+                        <span style="color: var(--text-muted);">（{{ card.reading }}）</span>
+                        <span style="color: var(--text-secondary); font-size: 0.9rem;">{{ card.meaning }}</span>
+                    </label>
+                    {% endfor %}
+                    {% if not flashcards %}
+                    <p style="text-align: center; color: var(--text-muted); padding: 20px;">
+                        フラッシュカードがありません。<a href="{{ url_for('teacher_flashcard_manage') }}">フラッシュカード管理</a>で作成してください。
+                    </p>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <!-- 書き取り一覧 -->
+        <div id="tab-writings" class="content-panel" style="display: none;">
+            <div class="form-group">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                    <label class="form-label" style="margin: 0;">✍️ 書き取り練習</label>
+                    <button type="button" class="btn btn-secondary btn-sm"
+                        onclick="selectAll('writing_ids')">全選択</button>
+                </div>
+                <div
+                    style="max-height: 250px; overflow-y: auto; border: 1px solid var(--border); border-radius: 8px; padding: 12px;">
+                    {% for writing in writings %}
+                    <label
+                        style="display: flex; align-items: center; gap: 10px; padding: 8px; cursor: pointer; border-bottom: 1px solid var(--border);">
+                        <input type="checkbox" name="writing_ids" value="{{ writing.id }}"
+                            style="width: 20px; height: 20px;">
+                        <strong style="font-size: 1.2rem;">{{ writing.word }}</strong>
+                        <span style="color: var(--text-muted);">（{{ writing.reading }}）</span>
+                        <span style="color: var(--text-secondary); font-size: 0.9rem;">{{ writing.meaning }}</span>
+                    </label>
+                    {% endfor %}
+                    {% if not writings %}
+                    <p style="text-align: center; color: var(--text-muted); padding: 20px;">
+                        書き取り練習がありません。<a href="{{ url_for('teacher_writing_manage') }}">書き取り管理</a>で作成してください。
+                    </p>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <!-- 選択数表示 -->
+        <div id="selection-summary"
+            style="background: linear-gradient(135deg, #e3f2fd 0%, #bbdefb 100%); padding: 12px; border-radius: 8px; margin: 16px 0; display: none;">
+            <strong>選択中:</strong> <span id="selected-quizzes">0</span>問のクイズ + <span
+                id="selected-flashcards">0</span>枚のカード + <span id="selected-writings">0</span>問の書き取り
+        </div>
+
+        <!-- 生徒選択 -->
+        <div class="form-group" style="margin-top: 20px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                <label class="form-label" style="margin: 0;">配信先の生徒</label>
+                <button type="button" class="btn btn-secondary btn-sm"
+                    onclick="selectAll('student_ids')">全生徒を選択</button>
+            </div>
+            <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px;">
+                {% for student in chinese_students %}
+                <label
+                    style="display: flex; align-items: center; gap: 8px; padding: 10px; background: var(--bg-hover); border-radius: 8px; cursor: pointer;">
+                    <input type="checkbox" name="student_ids" value="{{ student.id }}"
+                        style="width: 18px; height: 18px;">
+                    <span>🇨🇳 {{ student.display_name }}</span>
+                </label>
+                {% endfor %}
+
+                {% if not chinese_students %}
+                <p style="grid-column: span 2; text-align: center; color: var(--text-muted); padding: 20px;">
+                    中国人生徒がいません。<a href="{{ url_for('manage_students') }}">生徒管理</a>で追加してください。
+                </p>
+                {% endif %}
+            </div>
+        </div>
+
+        <button type="submit" class="btn btn-primary btn-block" style="margin-top: 20px;" {% if not chinese_students
+            %}disabled{% endif %}>
+            📤 選択した問題を配信
+        </button>
+    </form>
+</div>
+
+<!-- 最近の配信履歴 -->
+{% if recent_assignments %}
+<div class="card">
+    <h2 class="card-title">📋 最近の配信（クイズ）</h2>
+    <table style="width: 100%; border-collapse: collapse;">
+        <thead>
+            <tr style="border-bottom: 2px solid var(--border);">
+                <th style="text-align: left; padding: 10px;">問題</th>
+                <th style="text-align: left; padding: 10px;">生徒</th>
+                <th style="text-align: left; padding: 10px;">状態</th>
+                <th style="text-align: left; padding: 10px;">配信日</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for assignment in recent_assignments %}
+            <tr style="border-bottom: 1px solid var(--border);">
+                <td style="padding: 10px;"><strong>{{ assignment.quiz.word }}</strong></td>
+                <td style="padding: 10px;">{{ assignment.student.display_name }}</td>
+                <td style="padding: 10px;">
+                    {% if assignment.completed %}
+                    {% if assignment.is_correct %}
+                    <span class="status-badge" style="background: #e8f5e9; color: #1b5e20;">✅ 正解</span>
+                    {% else %}
+                    <span class="status-badge" style="background: #ffebee; color: #b71c1c;">❌ 不正解</span>
+                    {% endif %}
+                    {% else %}
+                    <span class="status-badge status-pending">⏳ 未回答</span>
+                    {% endif %}
+                </td>
+                <td style="padding: 10px; color: var(--text-muted);">{{ assignment.assigned_at|jst('%m/%d %H:%M') }}
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endif %}
+
+<script>
+    function switchContentTab(tabName) {
+        // パネル切り替え
+        document.querySelectorAll('.content-panel').forEach(el => el.style.display = 'none');
+        document.getElementById('tab-' + tabName).style.display = 'block';
+
+        // タブボタンのスタイル
+        document.querySelectorAll('.content-tab').forEach(btn => {
+            btn.style.color = '#888';
+            btn.style.borderBottomColor = 'transparent';
+        });
+
+        // クリックしたタブをアクティブに
+        event.target.style.color = '#e91e8c';
+        event.target.style.borderBottomColor = '#e91e8c';
+    }
+
+    function selectAll(name) {
+        document.querySelectorAll('input[name="' + name + '"]').forEach(cb => cb.checked = true);
+        updateSelectionSummary();
+    }
+
+    function updateSelectionSummary() {
+        const quizCount = document.querySelectorAll('input[name="quiz_ids"]:checked').length;
+        const flashcardCount = document.querySelectorAll('input[name="flashcard_ids"]:checked').length;
+        const writingCount = document.querySelectorAll('input[name="writing_ids"]:checked').length;
+
+        document.getElementById('selected-quizzes').textContent = quizCount;
+        document.getElementById('selected-flashcards').textContent = flashcardCount;
+        document.getElementById('selected-writings').textContent = writingCount;
+
+        const summary = document.getElementById('selection-summary');
+        if (quizCount + flashcardCount + writingCount > 0) {
+            summary.style.display = 'block';
+        } else {
+            summary.style.display = 'none';
+        }
+    }
+
+    // チェックボックスの変更を監視
+    document.addEventListener('DOMContentLoaded', function () {
+        document.querySelectorAll('input[type="checkbox"]').forEach(cb => {
+            cb.addEventListener('change', updateSelectionSummary);
+        });
+    });
+</script>
+{% endblock %}

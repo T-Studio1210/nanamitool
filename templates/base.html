@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html lang="ja">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="theme-color" content="#e91e8c">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <title>{% block title %}七夢学習アプリ{% endblock %}</title>
+
+    <style>
+        input[type="text"],
+        textarea,
+        .ql-editor {
+            ime-mode: active;
+        }
+    </style>
+
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <link href="https://cdn.quilljs.com/1.3.7/quill.snow.css" rel="stylesheet">
+    <script src="https://cdn.quilljs.com/1.3.7/quill.min.js"></script>
+
+    <!-- PWA -->
+    <link rel="manifest" href="{{ url_for('static', filename='manifest.json') }}">
+    <link rel="apple-touch-icon" href="{{ url_for('static', filename='icon-192.png') }}">
+    <link rel="icon" type="image/png" href="{{ url_for('static', filename='icon-192.png') }}">
+
+    {% block head %}{% endblock %}
+</head>
+
+<body>
+    {% if current_user.is_authenticated %}
+    <!-- トップバー -->
+    <header class="header">
+        <div class="header-content">
+            <a href="{{ url_for('dashboard') }}" class="logo">📚 七夢学習</a>
+
+            <!-- PC用ナビ -->
+            <nav class="nav">
+                <a href="{{ url_for('dashboard') }}"
+                    class="nav-link {% if request.endpoint == 'dashboard' %}active{% endif %}">🏠 ホーム</a>
+                {% if current_user.is_teacher() %}
+                <a href="{{ url_for('create_problem') }}"
+                    class="nav-link {% if request.endpoint == 'create_problem' %}active{% endif %}">✏️ 問題</a>
+                <a href="{{ url_for('manage_students') }}"
+                    class="nav-link {% if request.endpoint == 'manage_students' %}active{% endif %}">👥 生徒</a>
+                <a href="{{ url_for('teacher_japanese_problems') }}"
+                    class="nav-link {% if 'japanese' in request.endpoint %}active{% endif %}">🇯🇵 日本語</a>
+                <a href="{{ url_for('manage_announcements') }}"
+                    class="nav-link {% if request.endpoint == 'manage_announcements' %}active{% endif %}">📢 連絡</a>
+                {% endif %}
+            </nav>
+
+            <div class="user-info">
+                <span class="user-name">{{ current_user.display_name }}</span>
+                <a href="{{ url_for('settings') }}" class="btn btn-secondary btn-sm">⚙️</a>
+            </div>
+        </div>
+    </header>
+    {% endif %}
+
+    <main class="main">
+        <div class="container">
+            {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+            {% for category, message in messages %}
+            <div class="alert alert-{{ category }} fade-in">{{ message }}</div>
+            {% endfor %}
+            {% endif %}
+            {% endwith %}
+
+            {% block content %}{% endblock %}
+        </div>
+    </main>
+
+    {% if current_user.is_authenticated %}
+    <!-- ボトムナビ（スマホ用） -->
+    <nav class="bottom-nav">
+        <a href="{{ url_for('dashboard') }}"
+            class="bottom-nav-link {% if request.endpoint == 'dashboard' %}active{% endif %}">
+            <span class="nav-icon">🏠</span>
+            <span>ホーム</span>
+        </a>
+        {% if current_user.is_teacher() %}
+        <a href="{{ url_for('create_problem') }}"
+            class="bottom-nav-link {% if request.endpoint == 'create_problem' %}active{% endif %}">
+            <span class="nav-icon">✏️</span>
+            <span>問題</span>
+        </a>
+        <a href="{{ url_for('manage_students') }}"
+            class="bottom-nav-link {% if request.endpoint == 'manage_students' %}active{% endif %}">
+            <span class="nav-icon">👥</span>
+            <span>生徒</span>
+        </a>
+        <a href="{{ url_for('manage_announcements') }}"
+            class="bottom-nav-link {% if request.endpoint == 'manage_announcements' %}active{% endif %}">
+            <span class="nav-icon">📢</span>
+            <span>連絡</span>
+        </a>
+        {% endif %}
+        <a href="{{ url_for('settings') }}"
+            class="bottom-nav-link {% if request.endpoint == 'settings' %}active{% endif %}">
+            <span class="nav-icon">⚙️</span>
+            <span>設定</span>
+        </a>
+    </nav>
+    {% endif %}
+
+    <!-- インストールバナー -->
+    <div id="install-banner" class="install-banner">
+        <div class="install-banner-content">
+            <div class="install-banner-icon">📱</div>
+            <div class="install-banner-text">
+                <div class="install-banner-title">アプリをインストール</div>
+                <div class="install-banner-desc">ホーム画面に追加して快適に使えます</div>
+            </div>
+            <button id="install-btn" class="install-btn">インストール</button>
+            <button id="install-close" class="install-close">×</button>
+        </div>
+    </div>
+
+    <style>
+        .install-banner {
+            display: none;
+            position: fixed;
+            bottom: 80px;
+            left: 16px;
+            right: 16px;
+            z-index: 9998;
+            animation: slideUp 0.3s ease-out;
+        }
+
+        @media (min-width: 600px) {
+            .install-banner {
+                left: auto;
+                right: 20px;
+                bottom: 20px;
+                max-width: 360px;
+            }
+        }
+
+        .install-banner-content {
+            background: linear-gradient(135deg, #e91e8c, #ff6b9d);
+            color: white;
+            padding: 16px;
+            border-radius: 16px;
+            box-shadow: 0 8px 24px rgba(233, 30, 140, 0.4);
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .install-banner-icon {
+            font-size: 2rem;
+            flex-shrink: 0;
+        }
+
+        .install-banner-text {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .install-banner-title {
+            font-weight: 700;
+            font-size: 1rem;
+        }
+
+        .install-banner-desc {
+            font-size: 0.8rem;
+            opacity: 0.9;
+            margin-top: 2px;
+        }
+
+        .install-btn {
+            background: white;
+            color: #e91e8c;
+            border: none;
+            padding: 10px 16px;
+            border-radius: 20px;
+            font-weight: 600;
+            font-size: 0.85rem;
+            cursor: pointer;
+            white-space: nowrap;
+            transition: transform 0.2s;
+        }
+
+        .install-btn:hover {
+            transform: scale(1.05);
+        }
+
+        .install-close {
+            background: rgba(255, 255, 255, 0.2);
+            color: white;
+            border: none;
+            width: 28px;
+            height: 28px;
+            border-radius: 50%;
+            cursor: pointer;
+            font-size: 1rem;
+            flex-shrink: 0;
+        }
+
+        @keyframes slideUp {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+    </style>
+
+    <script>
+        // PWA インストールプロンプト
+        let deferredPrompt = null;
+        const installBanner = document.getElementById('install-banner');
+        const installBtn = document.getElementById('install-btn');
+        const installClose = document.getElementById('install-close');
+
+        // インストール可能になったとき
+        window.addEventListener('beforeinstallprompt', (e) => {
+            e.preventDefault();
+            deferredPrompt = e;
+
+            // 既にインストール済みか、24時間以内に閉じていたら表示しない
+            const dismissed = localStorage.getItem('install-banner-dismissed');
+            if (dismissed && Date.now() - parseInt(dismissed) < 24 * 60 * 60 * 1000) {
+                return;
+            }
+
+            // バナー表示
+            if (installBanner) {
+                installBanner.style.display = 'block';
+            }
+        });
+
+        // インストールボタンクリック
+        if (installBtn) {
+            installBtn.addEventListener('click', async () => {
+                if (!deferredPrompt) return;
+
+                deferredPrompt.prompt();
+                const { outcome } = await deferredPrompt.userChoice;
+
+                if (outcome === 'accepted') {
+                    console.log('アプリがインストールされました');
+                }
+                deferredPrompt = null;
+                installBanner.style.display = 'none';
+            });
+        }
+
+        // 閉じるボタン
+        if (installClose) {
+            installClose.addEventListener('click', () => {
+                installBanner.style.display = 'none';
+                localStorage.setItem('install-banner-dismissed', Date.now().toString());
+            });
+        }
+
+        // インストール完了時
+        window.addEventListener('appinstalled', () => {
+            installBanner.style.display = 'none';
+            deferredPrompt = null;
+        });
+    </script>
+
+    <script src="{{ url_for('static', filename='js/editor.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/notifications.js') }}"></script>
+    {% block scripts %}{% endblock %}
+</body>
+
+</html>

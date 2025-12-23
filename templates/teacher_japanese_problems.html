@@ -1,0 +1,618 @@
+{% extends "base.html" %}
+
+{% block title %}日本語問題管理 - 七夢学習アプリ{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1 class="page-title">🇯🇵 日本語学習管理</h1>
+</div>
+
+
+<!-- タブ切り替え -->
+<div style="margin-bottom: 20px; border-bottom: 2px solid #eee; display: flex; gap: 20px;">
+    <button class="tab-btn active" onclick="switchTab('problems')"
+        style="background: none; border: none; padding: 10px 0; font-size: 1.1rem; font-weight: bold; cursor: pointer; border-bottom: 3px solid transparent;">
+        🎯 熟語クイズ管理
+    </button>
+    <button class="tab-btn" onclick="switchTab('feedback')"
+        style="background: none; border: none; padding: 10px 0; font-size: 1.1rem; font-weight: bold; cursor: pointer; border-bottom: 3px solid transparent; color: #888;">
+        💬 生徒の評価・フィードバック
+    </button>
+</div>
+
+<!-- タブ1: 問題管理 -->
+<div id="tab-problems" class="tab-content">
+    <!-- モード選択 -->
+    <div class="card" style="margin-bottom: 16px; padding: 12px;">
+        <div style="display: flex; gap: 8px; flex-wrap: wrap; justify-content: center;">
+            <a href="{{ url_for('teacher_kanji_list') }}" class="btn btn-secondary btn-sm">📚 漢字一覧</a>
+            <a href="{{ url_for('teacher_japanese_problems') }}" class="btn btn-primary btn-sm">🎯 熟語クイズ</a>
+            <a href="{{ url_for('teacher_flashcard_manage') }}" class="btn btn-secondary btn-sm">📖 フラッシュカード</a>
+            <a href="{{ url_for('teacher_writing_manage') }}" class="btn btn-secondary btn-sm">✍️ 書き取り</a>
+            <a href="{{ url_for('teacher_japanese_send') }}" class="btn btn-secondary btn-sm">📤 生徒に配信</a>
+        </div>
+    </div>
+
+    <!-- 熟語クイズ管理 -->
+    <div class="card" style="margin-bottom: 16px;">
+        <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px;">
+            <h2 class="card-title" style="margin: 0;">🎯 熟語クイズ ({{ problems|length }}問)</h2>
+            <div style="display: flex; gap: 8px;">
+                <a href="{{ url_for('teacher_kanji_list') }}" class="btn btn-primary btn-sm">📚 漢字から作成</a>
+                <a href="{{ url_for('teacher_japanese_generate') }}" class="btn btn-secondary btn-sm">✨ AIで生成</a>
+            </div>
+        </div>
+    </div>
+
+    <!-- 選択したアイテムの一括操作バー -->
+    <div id="bulk-actions" class="card"
+        style="display: none; margin-bottom: 16px; background: linear-gradient(135deg, #e3f2fd 0%, #bbdefb 100%); border-color: #2196f3;">
+        <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px;">
+            <div>
+                <strong id="selected-count">0</strong>問を選択中
+            </div>
+            <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+                <button type="button" class="btn btn-primary btn-sm" onclick="showSendModal()">
+                    📤 選択した問題を配信
+                </button>
+                <button type="button" class="btn btn-danger btn-sm" onclick="bulkDelete()">
+                    🗑️ 選択した問題を削除
+                </button>
+                <button type="button" class="btn btn-secondary btn-sm" onclick="clearSelection()">
+                    ✖ 選択解除
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <div class="card">
+        {% if problems %}
+        <div style="margin-bottom: 12px; display: flex; gap: 12px;">
+            <button type="button" class="btn btn-secondary btn-sm" onclick="execSelectAll()">全選択</button>
+            <button type="button" class="btn btn-secondary btn-sm" onclick="execClearSelection()">全解除</button>
+        </div>
+        <table style="width: 100%; border-collapse: collapse;">
+            <thead>
+                <tr style="border-bottom: 2px solid var(--border);">
+                    <th style="text-align: center; padding: 12px; width: 40px;">
+                        <input type="checkbox" id="select-all-checkbox" onchange="toggleSelectAll(this)"
+                            style="width: 18px; height: 18px;">
+                    </th>
+                    <th style="text-align: left; padding: 12px;">熟語</th>
+                    <th style="text-align: left; padding: 12px;">読み方</th>
+                    <th style="text-align: left; padding: 12px;">中国語</th>
+                    <th style="text-align: left; padding: 12px;">カテゴリ</th>
+                    <th style="text-align: right; padding: 12px;">操作</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for prob in problems %}
+                <tr style="border-bottom: 1px solid var(--border);" data-problem-id="{{ prob.id }}">
+                    <td style="text-align: center; padding: 12px;">
+                        <input type="checkbox" class="problem-checkbox" value="{{ prob.id }}"
+                            onchange="updateBulkActions()" style="width: 18px; height: 18px;">
+                    </td>
+                    <td style="padding: 12px;">
+                        <strong style="font-size: 1.2rem;">{{ prob.word }}</strong>
+                    </td>
+                    <td style="padding: 12px;">{{ prob.correct_reading }}</td>
+                    <td style="padding: 12px; color: var(--text-secondary);">{{ prob.meaning_chinese }}</td>
+                    <td style="padding: 12px;">
+                        <span class="status-badge">{{ prob.category }}</span>
+                    </td>
+                    <td style="padding: 12px; text-align: right;">
+                        <button type="button" class="btn btn-secondary btn-sm"
+                            onclick="showEditModal({{ prob.id }}, '{{ prob.word }}', '{{ prob.correct_reading }}', '{{ prob.meaning_chinese|e }}', '{{ prob.example|e }}')">
+                            ✏️ 編集
+                        </button>
+                        <form method="POST" action="{{ url_for('delete_japanese_problem', problem_id=prob.id) }}"
+                            style="display: inline;">
+                            <button type="submit" class="btn btn-danger btn-sm"
+                                onclick="return confirm('「{{ prob.word }}」を削除しますか？')">
+                                🗑️
+                            </button>
+                        </form>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% else %}
+        <div class="empty-state">
+            <div class="empty-icon">📭</div>
+            <p>まだ問題が登録されていません。</p>
+            <a href="{{ url_for('teacher_kanji_list') }}" class="btn btn-primary" style="margin-top: 1rem;">
+                📚 漢字から問題を作成
+            </a>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- タブ2: フィードバック管理 -->
+<div id="tab-feedback" class="tab-content" style="display: none;">
+    <div class="feedback-container">
+        {% for group in grouped_tasks %}
+        <div class="feedback-group" style="margin-bottom: 24px;">
+            <!-- グループヘッダー -->
+            <div class="feedback-group-header"
+                style="background: #f8f9fa; padding: 12px 16px; border-radius: 8px 8px 0 0; border: 1px solid #e0e0e0; border-bottom: none; display: flex; justify-content: space-between; align-items: center;">
+                <h3 style="margin: 0; font-size: 1.1rem; color: #2c3e50; font-weight: bold;">
+                    👤 {{ group.student_name }}
+                </h3>
+                <span
+                    style="font-size: 0.9rem; color: #666; background: #fff; padding: 4px 8px; border-radius: 12px; border: 1px solid #ddd;">
+                    📅 {{ group.date|jst('%Y/%m/%d %H:%M') }} 配信の課題群
+                </span>
+            </div>
+
+            <div class="feedback-group-content"
+                style="border: 1px solid #e0e0e0; border-radius: 0 0 8px 8px; padding: 16px; background: #fff;">
+                {% for task in group.tasks %}
+                <div class="feedback-card" data-type="{{ task.type }}"
+                    style="border-left: 5px solid #ccc; background: #fafafa; padding: 1rem; margin-bottom: 12px; border-radius: 4px; box-shadow: 0 1px 2px rgba(0,0,0,0.05);">
+
+                    <div class="task-info"
+                        style="display: flex; align-items: center; gap: 0.8rem; margin-bottom: 0.8rem; flex-wrap: wrap;">
+                        <span class="task-type-badge"
+                            style="font-size: 0.8rem; padding: 3px 6px; border-radius: 4px; font-weight: bold; 
+                            {% if task.type == 'quiz' %}background: #e1bee7; color: #4a148c;{% elif task.type == 'flashcard' %}background: #c5cae9; color: #1a237e;{% elif task.type == 'writing' %}background: #b2dfdb; color: #004d40;{% endif %}">
+                            {% if task.type == 'quiz' %}🎯 クイズ
+                            {% elif task.type == 'flashcard' %}📖 カード
+                            {% elif task.type == 'writing' %}✍️ 書き取り{% endif %}
+                        </span>
+                        <span class="task-title" style="font-weight: bold; font-size: 1rem;">{{ task.title }}</span>
+
+                        <span style="margin-left: auto; font-size: 0.85rem; color: #888;">
+                            完了: {{ task.completed_at|jst('%H:%M') }}
+                        </span>
+
+                        <span class="task-status"
+                            style="font-size: 0.9rem; color: #4caf50; font-weight: bold; margin-left: 8px;">
+                            {% if task.status == 'correct' %}✅ 正解
+                            {% elif task.status == 'incorrect' %}❌ 不正解
+                            {% elif task.status == 'learned' %}✅ 覚えた
+                            {% else %}✅ 完了{% endif %}
+                        </span>
+                    </div>
+
+                    <!-- 書き取り画像表示 -->
+                    {% if task.type == 'writing' and task.result_image %}
+                    <div
+                        style="margin: 10px 0; text-align: center; background: #fff; padding: 10px; border: 1px solid #eee; border-radius: 4px;">
+                        <img src="{{ task.result_image }}" alt="書き取り結果"
+                            style="max-width: 100%; max-height: 150px; border: 1px solid #ddd; border-radius: 4px; cursor: zoom-in; transition: transform 0.2s;"
+                            onclick="showImageModal(this.src)" onmouseover="this.style.transform='scale(1.02)'"
+                            onmouseout="this.style.transform='scale(1)'">
+                        <p style="font-size: 0.75rem; color: #aaa; margin: 4px 0 0 0;">クリックして拡大確認</p>
+                    </div>
+                    {% endif %}
+
+                    <form action="{{ url_for('save_feedback') }}" method="POST" class="feedback-form">
+                        <input type="hidden" name="type" value="{{ task.type }}">
+                        <input type="hidden" name="id" value="{{ task.id }}">
+                        <div class="feedback-input-group" style="display: flex; gap: 0.5rem; align-items: flex-start;">
+                            <textarea name="feedback" placeholder="先生からのコメントを入力..." rows="1"
+                                style="flex: 1; padding: 0.6rem; border: 1px solid #ddd; border-radius: 6px; resize: vertical; min-height: 40px; font-family: inherit;">{{ task.feedback or '' }}</textarea>
+                            <button type="submit" class="save-btn"
+                                style="background: #2196f3; color: white; border: none; padding: 0.6rem 1.2rem; border-radius: 6px; cursor: pointer; font-weight: bold; font-size: 0.9rem;">保存</button>
+                        </div>
+                    </form>
+                </div>
+                {% endfor %}
+            </div>
+
+            <!-- 一括保存エリア -->
+            <!-- 一括保存エリア -->
+            <div class="feedback-group-footer"
+                style="padding: 12px 16px; background: #f8f9fa; border: 1px solid #e0e0e0; border-top: none; border-radius: 0 0 8px 8px; display: flex; justify-content: flex-end; align-items: center; gap: 12px;">
+                <span style="font-size: 0.85rem; color: #666;">（個別の「保存」ボタンを押さなくても、これですべて保存できます）</span>
+                <button type="button" class="btn btn-secondary" onclick="fillGroupFeedback(this)">
+                    📝 一括入力
+                </button>
+                <button type="button" class="btn btn-primary" onclick="saveGroupFeedback(this)">
+                    💾 一括保存
+                </button>
+            </div>
+        </div>
+        <script>
+            // カードの左枠線色を設定
+            (function () {
+                const groups = document.querySelectorAll('.feedback-card');
+                groups.forEach(card => {
+                    const type = card.dataset.type;
+                    if (type === 'quiz') card.style.borderLeftColor = '#9c27b0';
+                    else if (type === 'flashcard') card.style.borderLeftColor = '#3f51b5';
+                    else if (type === 'writing') card.style.borderLeftColor = '#009688';
+                });
+            })();
+        </script>
+        {% else %}
+        <p class="no-data"
+            style="text-align: center; color: #666; padding: 2rem; background: #f5f5f5; border-radius: 8px;">
+            完了済みの課題はありません。</p>
+        {% endfor %}
+    </div>
+</div>
+
+<!-- 画像拡大モーダル -->
+<div id="image-modal"
+    style="display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.85); z-index: 2000; align-items: center; justify-content: center; cursor: pointer;"
+    onclick="this.style.display='none'">
+    <img id="modal-image" src=""
+        style="max-width: 90%; max-height: 90vh; border-radius: 4px; box-shadow: 0 4px 12px rgba(0,0,0,0.3); background: white;">
+</div>
+
+<script>
+    function showImageModal(src) {
+        document.getElementById('modal-image').src = src;
+        document.getElementById('image-modal').style.display = 'flex';
+    }
+
+    function fillGroupFeedback(btn) {
+        const text = prompt('このグループの全ての課題に入力するコメントを入力してください:\n（既存の入力は上書きされます）');
+        if (text === null) return;
+
+        const groupDiv = btn.closest('.feedback-group');
+        const textareas = groupDiv.querySelectorAll('textarea[name="feedback"]');
+        textareas.forEach(ta => ta.value = text);
+    }
+
+    function saveGroupFeedback(btn) {
+        const groupDiv = btn.closest('.feedback-group');
+        const forms = groupDiv.querySelectorAll('.feedback-form');
+        const data = [];
+
+        forms.forEach(form => {
+            const formData = new FormData(form);
+            data.push({
+                type: formData.get('type'),
+                id: formData.get('id'),
+                feedback: formData.get('feedback')
+            });
+        });
+
+        if (data.length === 0) return;
+
+        btn.disabled = true;
+        const originalText = btn.textContent;
+        btn.textContent = '⏳ 保存中...';
+
+        fetch('/teacher/feedback/save_bulk', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ feedbacks: data })
+        })
+            .then(response => response.json())
+            .then(result => {
+                if (result.success) {
+                    btn.textContent = '✅ 保存完了！';
+                    setTimeout(() => {
+                        btn.disabled = false;
+                        btn.textContent = originalText;
+                    }, 2000);
+                } else {
+                    alert('保存に失敗しました: ' + (result.message || '不明なエラー'));
+                    btn.disabled = false;
+                    btn.textContent = originalText;
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('通信エラーが発生しました');
+                btn.disabled = false;
+                btn.textContent = originalText;
+            });
+    }
+</script>
+
+<script>
+    function switchTab(tabName) {
+        // コンテンツ切り替え
+        document.querySelectorAll('.tab-content').forEach(el => el.style.display = 'none');
+        document.getElementById('tab-' + tabName).style.display = 'block';
+
+        // ボタンのアクティブ状態
+        document.querySelectorAll('.tab-btn').forEach(btn => {
+            btn.classList.remove('active');
+            btn.style.color = '#888';
+            btn.style.borderBottomColor = 'transparent';
+        });
+
+        // クリックしたボタンをアクティブに（event.targetだとうまくいかない場合があるので、順序依存またはクラスで制御推奨だが、ここでは簡易実装）
+        // 簡易的にDOMから探す
+        const btns = document.querySelectorAll('.tab-btn');
+        if (tabName === 'problems') {
+            btns[0].style.color = 'var(--primary, #e91e8c)';
+            btns[0].style.borderBottomColor = 'var(--primary, #e91e8c)';
+        } else {
+            btns[1].style.color = 'var(--primary, #e91e8c)';
+            btns[1].style.borderBottomColor = 'var(--primary, #e91e8c)';
+        }
+    }
+
+    // 初期タブのアクティブスタイル設定
+    const activeBtn = document.querySelector('.tab-btn.active');
+    if (activeBtn) {
+        activeBtn.style.color = 'var(--primary, #e91e8c)';
+        activeBtn.style.borderBottomColor = 'var(--primary, #e91e8c)';
+    }
+
+    // ... 既存のscript関数 ...
+</script>
+
+<!-- 一括配信モーダル -->
+<div id="send-modal"
+    style="display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.7); z-index: 1000; align-items: center; justify-content: center;">
+    <div class="card" style="max-width: 500px; width: 90%; max-height: 90vh; overflow-y: auto;">
+        <h2 class="card-title">📤 選択した問題を配信</h2>
+        <form id="send-form" method="POST" action="{{ url_for('bulk_send_japanese_quiz') }}">
+            <input type="hidden" name="quiz_ids" id="send-quiz-ids">
+
+            <div class="form-group">
+                <label class="form-label">選択した問題（<span id="send-count">0</span>問）</label>
+                <div id="send-problem-list"
+                    style="background: var(--bg-hover); padding: 12px; border-radius: 8px; max-height: 150px; overflow-y: auto;">
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">配信先の生徒</label>
+                <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px;">
+                    {% for student in chinese_students %}
+                    <label
+                        style="display: flex; align-items: center; gap: 8px; padding: 10px; background: var(--bg-hover); border-radius: 8px; cursor: pointer;">
+                        <input type="checkbox" name="student_ids" value="{{ student.id }}"
+                            style="width: 18px; height: 18px;" checked>
+                        <span>🇨🇳 {{ student.display_name }}</span>
+                    </label>
+                    {% endfor %}
+                    {% if not chinese_students %}
+                    <p style="grid-column: span 2; text-align: center; color: var(--text-muted); padding: 20px;">
+                        中国人生徒がいません。<a href="{{ url_for('manage_students') }}">生徒管理</a>で追加してください。
+                    </p>
+                    {% endif %}
+                </div>
+            </div>
+
+            <div style="display: flex; gap: 12px; margin-top: 20px;">
+                <button type="submit" class="btn btn-primary" {% if not chinese_students %}disabled{% endif %}>
+                    📤 配信する
+                </button>
+                <button type="button" class="btn btn-secondary" onclick="closeSendModal()">
+                    キャンセル
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!--編集モーダル -->
+<div id="edit-modal"
+    style="display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.7); z-index: 1000; align-items: center; justify-content: center;">
+    <div class="card" style="max-width: 500px; width: 90%; max-height: 90vh; overflow-y: auto;">
+        <h2 class="card-title">✏️ 問題を編集</h2>
+        <form id="edit-form" method="POST" action="{{ url_for('edit_japanese_problem') }}">
+            <input type="hidden" name="problem_id" id="edit-problem-id">
+
+            <div class="form-group">
+                <label class="form-label">熟語</label>
+                <input type="text" name="word" id="edit-word" class="form-input" required>
+            </div>
+            <div class="form-group">
+                <label class="form-label">読み方</label>
+                <input type="text" name="correct_reading" id="edit-reading" class="form-input" required>
+            </div>
+            <div class="form-group">
+                <label class="form-label">中国語の意味</label>
+                <input type="text" name="meaning_chinese" id="edit-meaning" class="form-input">
+            </div>
+            <div class="form-group">
+                <label class="form-label">例文</label>
+                <input type="text" name="example" id="edit-example" class="form-input">
+            </div>
+
+            <div style="display: flex; gap: 12px; margin-top: 20px;">
+                <button type="submit" class="btn btn-primary">
+                    💾 保存
+                </button>
+                <button type="button" class="btn btn-secondary" onclick="closeEditModal()">
+                    キャンセル
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!--一括削除フォーム(hidden) -->
+
+
+<!-- 手動追加フォーム -->
+<div class="card">
+    <h2 class="card-title">➕ 手動で問題を追加</h2>
+
+    <form method="POST" action="{{ url_for('add_japanese_problem') }}">
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+            <div class="form-group" style="margin-bottom: 0;">
+                <label class="form-label">熟語（漢字）</label>
+                <input type="text" name="word" class="form-input" placeholder="例: 勉強" required>
+            </div>
+            <div class="form-group" style="margin-bottom: 0;">
+                <label class="form-label">正しい読み方</label>
+                <input type="text" name="correct_reading" class="form-input" placeholder="例: べんきょう" required>
+            </div>
+            <div class="form-group" style="margin-bottom: 0;">
+                <label class="form-label">間違い選択肢1</label>
+                <input type="text" name="wrong1" class="form-input" placeholder="例: べんきよう" required>
+            </div>
+            <div class="form-group" style="margin-bottom: 0;">
+                <label class="form-label">間違い選択肢2</label>
+                <input type="text" name="wrong2" class="form-input" placeholder="例: べんきゅう" required>
+            </div>
+            <div class="form-group" style="margin-bottom: 0;">
+                <label class="form-label">間違い選択肢3</label>
+                <input type="text" name="wrong3" class="form-input" placeholder="例: べんこう" required>
+            </div>
+            <div class="form-group" style="margin-bottom: 0;">
+                <label class="form-label">中国語の意味</label>
+                <input type="text" name="meaning_chinese" class="form-input" placeholder="例: 学习 xuéxí">
+            </div>
+        </div>
+        <div class="form-group" style="margin-top: 12px;">
+            <label class="form-label">例文</label>
+            <input type="text" name="example" class="form-input" placeholder="例: 毎日日本語を勉強します。">
+        </div>
+        <button type="submit" class="btn btn-primary btn-block">
+            ➕ 問題を追加
+        </button>
+    </form>
+</div>
+
+<!-- 一括削除フォーム(hidden) - JSから操作 -->
+<form id="bulk-delete-form-secure" method="POST" action="{{ url_for('bulk_delete_japanese_problems') }}"
+    style="display: none;">
+    <input type="hidden" name="problem_ids" id="delete-problem-ids-secure">
+</form>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    // 選択された問題ID
+    let selectedProblems = new Set();
+
+    function updateBulkActions() {
+        const checkboxes = document.querySelectorAll('.problem-checkbox:checked');
+        selectedProblems.clear();
+        checkboxes.forEach(cb => selectedProblems.add(cb.value));
+
+        const bulkActions = document.getElementById('bulk-actions');
+        const countSpan = document.getElementById('selected-count');
+
+        if (selectedProblems && bulkActions && countSpan) {
+            if (selectedProblems.size > 0) {
+                bulkActions.style.display = 'block';
+                countSpan.textContent = selectedProblems.size;
+            } else {
+                bulkActions.style.display = 'none';
+            }
+        }
+
+        // ヘッダーチェックボックスの状態更新
+        const allCheckboxes = document.querySelectorAll('.problem-checkbox');
+        const selectAllCb = document.getElementById('select-all-checkbox');
+        if (selectAllCb) {
+            selectAllCb.checked = allCheckboxes.length > 0 && checkboxes.length === allCheckboxes.length;
+            selectAllCb.indeterminate = checkboxes.length > 0 && checkboxes.length < allCheckboxes.length;
+        }
+    }
+
+    // グローバルスコープに明示的に割り当て
+    window.toggleSelectAll = function (checkbox) {
+        const allCheckboxes = document.querySelectorAll('.problem-checkbox');
+        allCheckboxes.forEach(cb => cb.checked = checkbox.checked);
+        updateBulkActions();
+    };
+
+    window.execSelectAll = function () {
+        console.log('execSelectAll called');
+        const allCheckboxes = document.querySelectorAll('.problem-checkbox');
+        allCheckboxes.forEach(cb => cb.checked = true);
+        updateBulkActions();
+    };
+
+    window.execClearSelection = function () {
+        console.log('execClearSelection called');
+        const allCheckboxes = document.querySelectorAll('.problem-checkbox');
+        allCheckboxes.forEach(cb => cb.checked = false);
+        const selectAllCb = document.getElementById('select-all-checkbox');
+        if (selectAllCb) {
+            selectAllCb.checked = false;
+            selectAllCb.indeterminate = false;
+        }
+        updateBulkActions();
+    };
+
+    window.showSendModal = function () {
+        if (selectedProblems.size === 0) {
+            alert('問題を選択してください');
+            return;
+        }
+
+        document.getElementById('send-quiz-ids').value = Array.from(selectedProblems).join(',');
+        document.getElementById('send-count').textContent = selectedProblems.size;
+
+        // 選択した問題リストを表示
+        const list = document.getElementById('send-problem-list');
+        const rows = document.querySelectorAll('tr[data-problem-id]');
+        let html = '';
+        rows.forEach(row => {
+            if (selectedProblems.has(row.dataset.problemId)) {
+                const wordElement = row.querySelector('strong');
+                const word = wordElement ? wordElement.textContent : '不明';
+                html += `<div style="padding: 4px 0;">${word}</div>`;
+            }
+        });
+        list.innerHTML = html;
+
+        document.getElementById('send-modal').style.display = 'flex';
+    };
+
+    window.closeSendModal = function () {
+        document.getElementById('send-modal').style.display = 'none';
+    };
+
+    window.showEditModal = function (id, word, reading, meaning, example) {
+        document.getElementById('edit-problem-id').value = id;
+        document.getElementById('edit-word').value = word;
+        document.getElementById('edit-reading').value = reading;
+        document.getElementById('edit-meaning').value = meaning || '';
+        document.getElementById('edit-example').value = example || '';
+        document.getElementById('edit-modal').style.display = 'flex';
+    };
+
+    window.closeEditModal = function () {
+        document.getElementById('edit-modal').style.display = 'none';
+    };
+
+    window.bulkDelete = function () {
+        console.log('bulkDelete called');
+        if (selectedProblems.size === 0) {
+            alert('問題を選択してください');
+            return;
+        }
+
+        if (!confirm(`${selectedProblems.size}問の問題を削除しますか？この操作は取り消せません。`)) {
+            return;
+        }
+
+        const input = document.getElementById('delete-problem-ids-secure');
+        const form = document.getElementById('bulk-delete-form-secure');
+
+        if (!input || !form) {
+            console.error('Form or input element not found!', { input, form });
+            alert('内部エラーが発生しました。ページを再読み込みしてください。');
+            return;
+        }
+
+        input.value = Array.from(selectedProblems).join(',');
+        console.log('Submitting bulk delete form via JS');
+        form.submit();
+    };
+
+    // モーダル外クリックで閉じる
+    document.addEventListener('DOMContentLoaded', function () {
+        ['send-modal', 'edit-modal'].forEach(id => {
+            const modal = document.getElementById(id);
+            if (modal) {
+                modal.addEventListener('click', function (e) {
+                    if (e.target === this) {
+                        this.style.display = 'none';
+                    }
+                });
+            }
+        });
+    });
+</script>
+{% endblock %}

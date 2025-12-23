@@ -1,0 +1,115 @@
+{% extends "base.html" %}
+
+{% block title %}フラッシュカード - 七夢学習アプリ{% endblock %}
+
+{% block head %}
+<style>
+    .flashcard {
+        perspective: 1000px;
+        margin: 20px 0;
+    }
+
+    .flashcard-inner {
+        position: relative;
+        width: 100%;
+        min-height: 200px;
+        transition: transform 0.6s;
+        transform-style: preserve-3d;
+    }
+
+    .flashcard.flipped .flashcard-inner {
+        transform: rotateY(180deg);
+    }
+
+    .flashcard-front,
+    .flashcard-back {
+        position: absolute;
+        width: 100%;
+        min-height: 200px;
+        backface-visibility: hidden;
+        border-radius: 16px;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        padding: 24px;
+        box-shadow: 0 4px 16px rgba(233, 30, 140, 0.15);
+    }
+
+    .flashcard-front {
+        background: linear-gradient(135deg, #e91e8c 0%, #c4177a 100%);
+        color: white;
+    }
+
+    .flashcard-back {
+        background: white;
+        color: var(--text-primary);
+        transform: rotateY(180deg);
+        border: 2px solid var(--primary);
+    }
+
+    .flashcard-word {
+        font-size: 3rem;
+        font-weight: 700;
+    }
+
+    .flashcard-reading {
+        font-size: 1.8rem;
+        font-weight: 600;
+        color: var(--primary);
+        margin-bottom: 12px;
+    }
+
+    .flashcard-meaning {
+        font-size: 1.2rem;
+        color: var(--text-secondary);
+        margin-bottom: 8px;
+    }
+
+    .flashcard-example {
+        font-size: 1rem;
+        color: var(--text-muted);
+        margin-top: 8px;
+    }
+
+    .nav-buttons {
+        display: flex;
+        gap: 12px;
+        margin-top: 20px;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1 class="page-title">📖 フラッシュカード</h1>
+    <a href="{{ url_for('japanese_dashboard') }}" class="btn btn-secondary btn-sm">← 戻る</a>
+</div>
+
+<p style="text-align: center;">カードをタップして答えを見よう！ ({{ current_index + 1 }} / {{ total }})</p>
+
+<div class="flashcard" id="flashcard" onclick="flipCard()">
+    <div class="flashcard-inner">
+        <div class="flashcard-front">
+            <div class="flashcard-word">{{ card.word }}</div>
+            <div style="margin-top: 12px; opacity: 0.8;">タップして答えを見る</div>
+        </div>
+        <div class="flashcard-back">
+            <div class="flashcard-reading">{{ card.reading }}</div>
+            <div class="flashcard-meaning">🇨🇳 {{ card.meaning }}</div>
+            <div class="flashcard-example">📝 {{ card.example }}</div>
+        </div>
+    </div>
+</div>
+
+<div class="nav-buttons">
+    <a href="{{ url_for('japanese_flashcard', index=prev_index) }}" class="btn btn-secondary" style="flex: 1;">⬅️ 前</a>
+    <a href="{{ url_for('japanese_flashcard', index=next_index) }}" class="btn btn-primary" style="flex: 1;">次 ➡️</a>
+</div>
+
+<script>
+    function flipCard() {
+        document.getElementById('flashcard').classList.toggle('flipped');
+    }
+</script>
+{% endblock %}

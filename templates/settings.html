@@ -1,0 +1,150 @@
+{% extends "base.html" %}
+
+{% block title %}設定 - 石川七夢講師専用学習アプリ{% endblock %}
+
+{% block content %}
+<div class="fade-in">
+    <div class="page-header">
+        <h1 class="page-title">⚙️ 設定</h1>
+    </div>
+
+    <div style="display: grid; gap: 1.5rem; max-width: 600px;">
+        <!-- 表示名変更 -->
+        <div class="card">
+            <h2 class="card-title">👤 表示名の変更</h2>
+            <form method="POST" action="{{ url_for('settings') }}">
+                <input type="hidden" name="action" value="change_display_name">
+                <div class="form-group">
+                    <label class="form-label" for="display_name">表示名</label>
+                    <input type="text" id="display_name" name="display_name" class="form-input"
+                        value="{{ current_user.display_name }}" required>
+                </div>
+                <button type="submit" class="btn btn-primary">変更を保存</button>
+            </form>
+        </div>
+
+        <!-- パスワード変更 -->
+        <div class="card">
+            <h2 class="card-title">🔐 パスワードの変更</h2>
+            <form method="POST" action="{{ url_for('settings') }}">
+                <input type="hidden" name="action" value="change_password">
+                <div class="form-group">
+                    <label class="form-label" for="current_password">現在のパスワード</label>
+                    <input type="password" id="current_password" name="current_password" class="form-input" required>
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="new_password">新しいパスワード</label>
+                    <input type="password" id="new_password" name="new_password" class="form-input" required
+                        minlength="4">
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="confirm_password">新しいパスワード（確認）</label>
+                    <input type="password" id="confirm_password" name="confirm_password" class="form-input" required
+                        minlength="4">
+                </div>
+                <button type="submit" class="btn btn-primary">パスワードを変更</button>
+            </form>
+        </div>
+
+        <!-- 通知設定 -->
+        <div class="card">
+            <h2 class="card-title">🔔 通知設定</h2>
+            <p style="color: var(--text-secondary); margin-bottom: 1rem; font-size: 0.9rem;">
+                通知を有効にすると、連絡事項やフィードバックをプッシュ通知で受け取れます。
+            </p>
+            <div id="notification-status"
+                style="margin-bottom: 1rem; padding: 10px; border-radius: 8px; background: var(--bg-hover);">
+                通知状態: 確認中...
+            </div>
+            <div style="display: flex; gap: 0.75rem; flex-wrap: wrap;">
+                <button id="enable-push-btn" class="btn btn-primary" onclick="enablePushNotifications()">
+                    🔔 通知を有効にする
+                </button>
+                <button id="test-notification-btn" class="btn btn-secondary" onclick="testNotification()">
+                    🧪 テスト通知を送信
+                </button>
+            </div>
+        </div>
+
+        <!-- アカウント情報 -->
+        <div class="card">
+            <h2 class="card-title">📋 アカウント情報</h2>
+            <div style="display: grid; gap: 0.75rem;">
+                <div>
+                    <span style="color: var(--text-secondary);">ユーザー名:</span>
+                    <span style="margin-left: 0.5rem;">{{ current_user.username }}</span>
+                </div>
+                <div>
+                    <span style="color: var(--text-secondary);">役割:</span>
+                    <span style="margin-left: 0.5rem;">
+                        {% if current_user.is_teacher() %}👨‍🏫 先生{% else %}👨‍🎓 生徒{% endif %}
+                    </span>
+                </div>
+                <div>
+                    <span style="color: var(--text-secondary);">登録日:</span>
+                    <span style="margin-left: 0.5rem;">{{ current_user.created_at.strftime('%Y年%m月%d日') }}</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- ログアウト -->
+        <div class="card" style="background: rgba(244, 67, 54, 0.05); border: 1px solid rgba(244, 67, 54, 0.3);">
+            <a href="{{ url_for('logout') }}" class="btn btn-danger btn-block" style="font-size: 1rem;">
+                🚪 ログアウト
+            </a>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    // 通知状態を確認
+    function updateNotificationStatus() {
+        const statusEl = document.getElementById('notification-status');
+        const btn = document.getElementById('enable-push-btn');
+
+        if (!('Notification' in window)) {
+            statusEl.innerHTML = '❌ このブラウザは通知をサポートしていません';
+            btn.style.display = 'none';
+            return;
+        }
+
+        if (Notification.permission === 'granted') {
+            statusEl.innerHTML = '✅ 通知は有効です';
+            statusEl.style.background = 'rgba(76, 175, 80, 0.2)';
+            btn.textContent = '✅ 通知は有効です';
+            btn.disabled = true;
+            btn.style.opacity = '0.7';
+        } else if (Notification.permission === 'denied') {
+            statusEl.innerHTML = '❌ 通知がブロックされています。ブラウザの設定から許可してください。';
+            statusEl.style.background = 'rgba(244, 67, 54, 0.2)';
+            btn.style.display = 'none';
+        } else {
+            statusEl.innerHTML = '⏳ 通知はまだ有効になっていません';
+            btn.textContent = '🔔 通知を有効にする';
+        }
+    }
+
+    // 通知を有効にする
+    async function enablePushNotifications() {
+        localStorage.removeItem('notification-dismissed');
+
+        if (typeof requestPushPermission === 'function') {
+            const token = await requestPushPermission();
+            if (token) {
+                alert('通知が有効になりました！');
+            }
+        } else {
+            const permission = await Notification.requestPermission();
+            if (permission === 'granted') {
+                alert('通知が許可されました。ページをリロードして完了します。');
+                location.reload();
+            }
+        }
+        updateNotificationStatus();
+    }
+
+    document.addEventListener('DOMContentLoaded', updateNotificationStatus);
+</script>
+{% endblock %}
