@@ -4,7 +4,7 @@ services:
     name: nanamitool
     runtime: python
     buildCommand: "./build.sh"
-    startCommand: "python create_admin.py && python -c 'from app import app; from seed_kanji import seed_kanji; app.app_context().push(); seed_kanji()' && gunicorn app:app"
+    startCommand: "gunicorn app:app"
     envVars:
       - key: PYTHON_VERSION
         value: "3.11.0"

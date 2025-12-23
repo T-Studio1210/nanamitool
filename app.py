@@ -22,9 +22,27 @@ app = Flask(__name__)
 app.config.from_object(Config)
 
 # データベース初期化
-# データベース初期化
 db.init_app(app)
 migrate = Migrate(app, db)
+
+# 本番環境用：アプリ起動時にテーブルと初期ユーザーを作成
+with app.app_context():
+    try:
+        db.create_all()
+        # 初期ユーザー作成（nanamiがいなければ作成）
+        from models import User
+        if not User.query.filter_by(username='nanami').first():
+            teacher = User(
+                username='nanami',
+                display_name='石川七夢先生',
+                role='teacher'
+            )
+            teacher.set_password('nanami2005')
+            db.session.add(teacher)
+            db.session.commit()
+            print("✅ 初期ユーザー(nanami)を作成しました")
+    except Exception as e:
+        print(f"⚠️ 初期化エラー（無視して続行）: {e}")
 
 # フィルター定義
 @app.template_filter('from_json_safe')
