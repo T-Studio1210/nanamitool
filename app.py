@@ -25,6 +25,42 @@ app.config.from_object(Config)
 db.init_app(app)
 migrate = Migrate(app, db)
 
+# ===== 緊急メンテナンス用ルート =====
+@app.route('/init_db_force')
+def init_db_force():
+    """強制的にDB初期化とユーザー作成を行う（デバッグ用）"""
+    try:
+        results = []
+        # 1. テーブル作成
+        db.create_all()
+        results.append("✅ データベーステーブルを作成しました")
+        
+        # 2. ユーザー作成
+        from models import User
+        if not User.query.filter_by(username='nanami').first():
+            teacher = User(
+                username='nanami',
+                display_name='石川七夢先生',
+                role='teacher'
+            )
+            teacher.set_password('nanami2005')
+            db.session.add(teacher)
+            db.session.commit()
+            results.append("✅ ユーザー(nanami)を作成しました")
+        else:
+            results.append("ℹ️ ユーザー(nanami)は既に存在します")
+            
+        # 3. 漢字データ
+        from seed_kanji import seed_kanji
+        # seed_kanji()はprint出力するので、簡易的に呼び出しだけ
+        seed_kanji()
+        results.append("✅ 漢字データの投入プロセスを実行しました")
+        
+        return "<br>".join(results)
+    except Exception as e:
+        return f"<h1>❌ エラーが発生しました</h1><p>{str(e)}</p>"
+# ==================================
+
 # 本番環境用：アプリ起動時にテーブルと初期ユーザーを作成
 with app.app_context():
     try:
